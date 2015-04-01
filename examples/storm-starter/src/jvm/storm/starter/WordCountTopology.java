@@ -20,6 +20,7 @@ package storm.starter;
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
+import backtype.storm.metric.LoggingMetricsConsumer;
 import backtype.storm.task.ShellBolt;
 import backtype.storm.topology.BasicOutputCollector;
 import backtype.storm.topology.IRichBolt;
@@ -30,6 +31,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 import storm.starter.spout.RandomSentenceSpout;
+import storm.feedback.FeedbackMetricsConsumer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -80,13 +82,14 @@ public class WordCountTopology {
     TopologyBuilder builder = new TopologyBuilder();
 
     builder.setSpout("spout", new RandomSentenceSpout(), 5);
-
     builder.setBolt("split", new SplitSentence(), 8).shuffleGrouping("spout");
     builder.setBolt("count", new WordCount(), 12).fieldsGrouping("split", new Fields("word"));
 
     Config conf = new Config();
-    conf.setDebug(true);
-
+    // conf.setDebug(true);
+	conf.setStatsSampleRate(1);
+	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
+    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
 
     if (args != null && args.length > 0) {
       conf.setNumWorkers(3);
@@ -99,7 +102,7 @@ public class WordCountTopology {
       LocalCluster cluster = new LocalCluster();
       cluster.submitTopology("word-count", conf, builder.createTopology());
 
-      Thread.sleep(10000);
+      Thread.sleep(60 * 1000);
 
       cluster.shutdown();
     }
