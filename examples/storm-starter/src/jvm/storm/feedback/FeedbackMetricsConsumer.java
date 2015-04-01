@@ -190,7 +190,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		this.localStormConf = stormConf;
         System.out.println("FEEDBACK_CONF: " + this.localStormConf);
-        NimbusClient client = NimbusClient.getConfiguredClient(conf);
+        NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
 	}
 	
 	// public void contactNimbus() {
