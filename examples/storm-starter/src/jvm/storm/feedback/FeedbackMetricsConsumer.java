@@ -201,14 +201,14 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
     @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
-		this.localStormConf = stormConf;
-        System.out.println("FEEDBACK_CONF: " + this.localStormConf);
+		
+		  this.localStormConf = stormConf;
+		  System.out.println("FEEDBACK_CONF: " + this.localStormConf);
         NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
         // Nimbus.Iface nimbusInterface = null;
         // client.getClient().getClusterInfo();
         try {
         //     // LOG.info("");
-            
             client.getClient().getClusterInfo();
         } catch(AuthorizationException e) {
             LOG.warn("exception: "+e.get_msg());
@@ -218,6 +218,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
         }finally {
             client.close();
         }
+	
 	}
 	
 	// public void contactNimbus() {
@@ -253,4 +254,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
     @Override
     public void cleanup() { }
+
+
 }
