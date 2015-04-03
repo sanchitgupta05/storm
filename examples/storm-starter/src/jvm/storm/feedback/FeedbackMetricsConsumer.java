@@ -23,9 +23,22 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Map;
 
+//import org.apache.thrift.TException;
+import org.apache.thrift7.TException;
+
 import backtype.storm.metric.api.IMetricsConsumer;
 import backtype.storm.task.IErrorReporter;
 import backtype.storm.task.TopologyContext;
+import backtype.storm.generated.Nimbus;
+import backtype.storm.generated.AlreadyAliveException;
+import backtype.storm.generated.AuthorizationException;
+import backtype.storm.generated.ClusterSummary;
+import backtype.storm.generated.InvalidTopologyException;
+import backtype.storm.generated.Nimbus;
+import backtype.storm.generated.StormTopology;
+import backtype.storm.generated.SubmitOptions;
+import backtype.storm.generated.TopologySummary;
+import backtype.storm.utils.BufferFileInputStream;
 import backtype.storm.utils.Utils;
 import backtype.storm.utils.NimbusClient;
 
@@ -191,6 +204,20 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		this.localStormConf = stormConf;
         System.out.println("FEEDBACK_CONF: " + this.localStormConf);
         NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
+        // Nimbus.Iface nimbusInterface = null;
+        // client.getClient().getClusterInfo();
+        try {
+        //     // LOG.info("");
+            
+            client.getClient().getClusterInfo();
+        } catch(AuthorizationException e) {
+            LOG.warn("exception: "+e.get_msg());
+            // throw e;
+        } catch(TException msg) {
+            LOG.warn("exception: "+ msg);
+        }finally {
+            client.close();
+        }
 	}
 	
 	// public void contactNimbus() {
