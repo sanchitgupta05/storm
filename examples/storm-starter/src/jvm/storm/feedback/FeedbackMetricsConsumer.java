@@ -95,6 +95,17 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				}
 			}
 		}
+
+		// calculate the normalized congestion value (num queued / num processed)
+		double total = 0;
+		for (ComponentStatistics stats : result.values()) {
+			stats.congestion = (double)stats.receiveQueueLength / stats.ackCount;
+			total += stats.congestion;
+		}
+		for (ComponentStatistics stats : result.values()) {
+			stats.congestion /= total;
+		}
+
 		return result;
 	}
 
@@ -113,20 +124,23 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		long totalAcks = getTotalAcks(statistics);
 		double elapsedTime = windowSize;
 
-		System.out.println("FEEDBACK RECEIVED DATA");
-		System.out.println("Total Seconds: " + elapsedTime);
-		System.out.println("Acks/second: " + totalAcks / elapsedTime);
+		System.out.println("FEEDBACK acks/second: " + totalAcks / elapsedTime);
 
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
-			if (stats.counter > 0) {
-				System.out.println("FEEDBACK " + component + ".sendQueueLength = " + stats.sendQueueLength / stats.counter);
-				System.out.println("FEEDBACK " + component + ".receiveQueueLength = " + stats.receiveQueueLength / stats.counter);
-			}
-			System.out.println("FEEDBACK " + component + ".ackCount = " + stats.ackCount);
-			System.out.println("FEEDBACK " + component + ".ackLatency = " + stats.ackLatency);
-			System.out.println("FEEDBACK " + component + ".capacity = " + (1000 / stats.ackLatency) * elapsedTime);
+			System.out.println(component + ".congestion = " + Math.round(stats.congestion * 100) + "%");
 		}
+
+		// for (String component : statistics.keySet()) {
+		// 	ComponentStatistics stats = statistics.get(component);
+		// 	if (stats.counter > 0) {
+		// 		System.out.println("FEEDBACK " + component + ".sendQueueLength = " + stats.sendQueueLength / stats.counter);
+		// 		System.out.println("FEEDBACK " + component + ".receiveQueueLength = " + stats.receiveQueueLength / stats.counter);
+		// 	}
+		// 	System.out.println("FEEDBACK " + component + ".ackCount = " + stats.ackCount);
+		// 	System.out.println("FEEDBACK " + component + ".ackLatency = " + stats.ackLatency);
+		// 	System.out.println("FEEDBACK " + component + ".congestion = " + stats.congestion);
+		// }
 	}
 
     @Override
@@ -181,6 +195,7 @@ class ComponentStatistics {
 	public double ackLatency;
 	public long receiveQueueLength;
 	public long sendQueueLength;
+	public double congestion;
 	public long counter;
 
 	public ComponentStatistics() {
@@ -189,6 +204,7 @@ class ComponentStatistics {
 		ackLatency = 0;
 		receiveQueueLength = 0;
 		sendQueueLength = 0;
+		congestion = 0;
 		counter = 0;
 	}
 
@@ -235,6 +251,7 @@ class ComponentStatistics {
 				(Map<String, Long>)dpMap.get("__receive");
 			receiveQueueLength += receive.get("population");
 		}
+
 		if (dpMap.containsKey("__sendqueue")) {
 			Map<String, Long> send =
 				(Map<String, Long>)dpMap.get("__sendqueue");
