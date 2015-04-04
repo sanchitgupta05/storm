@@ -334,12 +334,12 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	}  
 	
 
-	public void runAlgorithm() {
+	private void runAlgorithm() {
 		numWindowsToPass++;
 
 		if(currThroughput != 0 && numWindowsToPass > 5
 		 && currThroughput < DESIRED_ACKS_PER_SECONDS) {
-			__algorithm();
+			__algorithm2();
 			numWindowsToPass = 0;
 			numAlgorithmRun++;
 			if(numAlgorithmRun >= componentsQueue.size()) {
@@ -358,7 +358,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	 * A simple Round Robin algorithm that changes either the # of threads/componenet or 
 	 * adds a new parallel bolt to Storm (if possible)i
 	 */ 
-	public void __algorithm() {
+	private void __algorithm() {
 
 		Integer taskParallelHint;
 		String component;	
@@ -383,7 +383,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				/* TODO ROHIT: Add a parallel bolt on a new node*/
 				
 				/* update the insertion of the newly added bolt to all data structures*/
-
+				_last_startABolt = true;
 			}
 			componentsQueue.add(component);
 		}
@@ -393,18 +393,46 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 	/* __algorithm2()
 	 * Try to fix a combinatorial combination of 'k' largest bottlenecks by 
-	 * treating the Queue Size as the performance metrick
+	 * treating the Queue Size as the performance metric.
 	 */
-	public void __algorithm2() {
+	private void __algorithm2() {
+		Integer taskParallelHint;
+		String component;
+		Boolean startABolt = false;
 		for(Integer i = 0; i < numBottlenecksToFix; i++) {
-			Integer taskParallelHint;
-			String component;
-		
-			/* LATER: implement rolling back*/
+			taskParallelHint = 0;
+			startABolt = false;
 			
+			/* Check for older changes and need to revert */
+			if(currThroughput <= _last_acks) {
+				if(!mapLastAction.isEmpty()) {
+						/* Implement Later  */
+				}
+			} else {
 			
-				
+				mapLastAction.clear();
+				long maxVal = 0;	
+				for(long kk : mapReceiveQueueLengthToComponents.keySet()) {
+					if(kk > maxVal)
+						maxVal = kk;
+				}
+				component = mapReceiveQueueLengthToComponents.remove(maxVal);
+				taskParallelHint = mapTaskParallel.get(component);
+				if(taskParallelHint < MAX_PARALLELISM_HINT) {
+					mapTaskParallel.put(component, taskParallelHint++);
+				} else {
+					/* TODO ROHIT: Add a parallel bolt on a new node for this component*/
 
+					/* update the insertion of the newly added bolt to all needed data structures by an update function */
+					startABolt = true;
+				}
+				LastAction lAction = new LastAction();
+				lAction.updateAction(component, taskParallelHint-1 , currThroughput, startABolt);
+				mapLastAction.put(component, lAction);
+				_last_acks = currThroughput;
+			}
+			/* TODO ROHIT: Call rebalance from NimbusClient -- I have updated the new taskParallelHint above */
+		
 		}
 	}
 
