@@ -20,10 +20,14 @@ package storm.feedback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.Math;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -47,16 +51,37 @@ import backtype.storm.utils.Utils;
 import backtype.storm.utils.NimbusClient;
 
 public class FeedbackMetricsConsumer implements IMetricsConsumer {
-    public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
+	private Map localStormConf;
+	public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
 	private TopologyContext _context;
 
-	// For each task, keep track of a window of data points
+	static Integer MAX_PARALLELISM_HINT = 5;
+	private static Integer DESIRED_ACKS_PER_SECONDS = 3000 ;
+	static LastAction _lastAction;
+	double currThroughput;
+	Integer numWindowsToPass;
+	Integer numBottlenecksToFix;
+	Integer numAlgorithmRun;
+
+	/* A Queue of all the components in the Topology */
+	Queue<String> componentsQueue;
+
+	/* Maps Receive Queue Length to Component*/
+	HashMap<Long, String> mapReceiveQueueLengthToComponents;
+
+	/* Maps the parallelism Hint per Component*/
+	HashMap<String, Integer> mapTaskParallel;
+
+	/* For each Component, keep track of the lastAction taken by the algorithm*/
+	HashMap<String, LastAction> mapLastAction;
+
+	/* For each task, keep track of a window of data points */
 	private Map<Integer, DataPointWindow> dpwindow;
 
-	// How many times a task has sent metrics
+	/* How many times a task has sent metrics */
 	private Map<Integer, Integer> counter;
 
-	// How many samples to keep in the window
+	/* How many samples to keep in the window */
 	private int windowSize;
 
 	private boolean isMetricComponent(String component) {
@@ -65,13 +90,19 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			&& metricPrefix.equals(component.substring(0, metricPrefix.length()));
 	}
 
-    @Override
+	 @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		_context = context;
 
 		windowSize = 5;
+		currThroughput = 0;
+		numWindowsToPass = 0;
+		numAlgorithmRun = 0;
+
+		// set up data collection
 		dpwindow = new HashMap<Integer, DataPointWindow>();
 		counter = new HashMap<Integer, Integer>();
+		mapLastAction = new HashMap<String, LastAction>();
 		counter.put(-1, 0);
 		for (int i : _context.getTaskToComponent().keySet()) {
 			if (!isMetricComponent(_context.getTaskToComponent().get(i))) {
@@ -79,6 +110,33 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				counter.put(i, 0);
 			}
 		}
+
+		_lastAction = new LastAction();
+		componentsQueue = new LinkedList<String>();
+		mapTaskParallel = new HashMap<String, Integer>();
+		getComponentsOfTopology();
+		numBottlenecksToFix = 1;
+		_last_acks = 0;
+		_last_parallel = 0;
+		_last_comp = "";
+		mapReceiveQueueLengthToComponents = new HashMap<Long, String>();
+
+		this.localStormConf = stormConf;
+      System.out.println("FEEDBACK_CONF: " + this.localStormConf);
+      /*NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
+		  try {
+
+				client.getClient().getClusterInfo();
+
+		  } catch(AuthorizationException e) {
+            LOG.warn("exception: "+e.get_msg());
+            // throw e;
+        } catch(TException msg) {
+            LOG.warn("exception: "+ msg);
+
+		  } finally {
+            client.close();
+        } */
 	}
 
 	private double mean(List<Double> a) {
@@ -106,6 +164,16 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		System.out.println("p-value=" + p + ", " +
 						   (significant ? "increase" : "no increase"));
 		return significant;
+	}
+
+	private void getComponentsOfTopology() {
+		for (int i=0; i<_context.getTaskToComponent().size(); i++) {
+			String component = _context.getTaskToComponent().get(i);
+			if (component != null) {
+				componentsQueue.add(component);
+				mapTaskParallel.put(component, 1);
+			}
+		}
 	}
 
 	// Aggregate the collected data points into component-specific metrics
@@ -153,6 +221,8 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
 		long totalAcks = getTotalAcks(statistics);
 		double elapsedTime = windowSize;
+		mapReceiveQueueLengthToComponents.clear();
+		currThroughput = totalAcks/elapsedTime;
 
 		record.add((double)totalAcks / elapsedTime);
 		if (record.size() > 5) {
@@ -174,6 +244,10 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
 			System.out.println(component + ".congestion = " + Math.round(stats.congestion * 100) + "%");
+
+			if (stats.counter > 0) {
+				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+ ((long)Math.random()), component);
+			}
 		}
 	}
 
@@ -188,9 +262,10 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			dp.put(p.name, p.value);
 		}
 
-		// Every so often, report the statistics
+		// Every so often, report the statistics & run the algorithm
 		if (taskId == -1 && count > windowSize) {
 			printStatistics(collectStatistics());
+			// runAlgorithm();
 		}
 
 		// Update the window
@@ -199,10 +274,134 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			// System.out.println(taskId + ":" + taskInfo.srcComponentId);
 			// System.out.println(dp);
 		}
+
     }
 
     @Override
     public void cleanup() { }
+
+	// Stores the information about the last action performed by the algorithm
+	public class LastAction {
+		public String component;
+		public Integer oldParallelismHint;
+		public double oldAcksPerSecond;
+		Boolean oldStartAParallelBolt;
+
+		public  LastAction() {
+			component = "";
+			oldAcksPerSecond = 0;
+			oldParallelismHint = 0;
+			oldStartAParallelBolt = false;
+		}
+
+		public void updateAction(String comp, Integer parallelHint, double acksPerSecond, Boolean startABolt) {
+			component = comp;
+			oldParallelismHint = parallelHint;
+			oldAcksPerSecond = acksPerSecond;
+			oldStartAParallelBolt = startABolt;
+		}
+	}
+
+	private void runAlgorithm() {
+		numWindowsToPass++;
+
+		if(currThroughput != 0 && numWindowsToPass > 5
+		 && currThroughput < DESIRED_ACKS_PER_SECONDS) {
+			__algorithm2();
+			numWindowsToPass = 0;
+			numAlgorithmRun++;
+			if(numAlgorithmRun >= componentsQueue.size()) {
+				numBottlenecksToFix++;
+				numAlgorithmRun = 0;
+			}
+		 }
+	}
+
+	String _last_comp;
+	Integer _last_parallel;
+	double _last_acks;
+	Boolean _last_startABolt;
+
+	/* __algorithm() --
+	 * A simple Round Robin algorithm that changes either the # of threads/componenet or
+	 * adds a new parallel bolt to Storm (if possible)i
+	 */
+	private void __algorithm() {
+
+		Integer taskParallelHint;
+		String component;
+
+		if(currThroughput <= _lastAction.oldAcksPerSecond) {
+			/* revert to last Action */
+			component = _lastAction.component;
+			taskParallelHint = _lastAction.oldParallelismHint;
+
+		} else {
+			_lastAction.updateAction(_last_comp, _last_parallel, _last_acks, _last_startABolt);
+			component = componentsQueue.poll();
+			taskParallelHint = mapTaskParallel.get(component);
+
+			if(taskParallelHint < MAX_PARALLELISM_HINT)  {
+				mapTaskParallel.put(component, taskParallelHint++);	// updated the new parallelhint for the component in hashmap
+				_last_comp = component;
+				_last_parallel = taskParallelHint;
+				_last_acks = currThroughput;
+				_last_startABolt = false;
+			} else {
+				/* TODO ROHIT: Add a parallel bolt on a new node*/
+
+				/* update the insertion of the newly added bolt to all data structures*/
+				_last_startABolt = true;
+			}
+			componentsQueue.add(component);
+		}
+		// TODO ROHIT:  Call rebalance from NimbusClient -- I have updated the new taskParallelHint above
+
+	}
+
+	/* __algorithm2()
+	 * Try to fix a combinatorial combination of 'k' largest bottlenecks by
+	 * treating the Queue Size as the performance metric.
+	 */
+	private void __algorithm2() {
+		Integer taskParallelHint;
+		String component;
+		Boolean startABolt = false;
+		for(Integer i = 0; i < numBottlenecksToFix; i++) {
+			taskParallelHint = 0;
+			startABolt = false;
+
+			/* Check for older changes and need to revert */
+			if(currThroughput <= _last_acks) {
+				if(!mapLastAction.isEmpty()) {
+						/* Implement Later  */
+				}
+			} else {
+
+				mapLastAction.clear();
+				long maxVal = 0;
+				for(long kk : mapReceiveQueueLengthToComponents.keySet()) {
+					if(kk > maxVal)
+						maxVal = kk;
+				}
+				component = mapReceiveQueueLengthToComponents.remove(maxVal);
+				taskParallelHint = mapTaskParallel.get(component);
+				if(taskParallelHint < MAX_PARALLELISM_HINT) {
+					mapTaskParallel.put(component, taskParallelHint++);
+				} else {
+					/* TODO ROHIT: Add a parallel bolt on a new node for this component*/
+
+					/* update the insertion of the newly added bolt to all needed data structures by an update function */
+					startABolt = true;
+				}
+				LastAction lAction = new LastAction();
+				lAction.updateAction(component, taskParallelHint-1 , currThroughput, startABolt);
+				mapLastAction.put(component, lAction);
+				_last_acks = currThroughput;
+			}
+			/* TODO ROHIT: Call rebalance from NimbusClient -- I have updated the new taskParallelHint above */
+		}
+	}
 }
 
 class DataPointWindow {
@@ -285,7 +484,6 @@ class ComponentStatistics {
 				(Map<String, Long>)dpMap.get("__receive");
 			receiveQueueLength += receive.get("population");
 		}
-
 		if (dpMap.containsKey("__sendqueue")) {
 			Map<String, Long> send =
 				(Map<String, Long>)dpMap.get("__sendqueue");
