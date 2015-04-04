@@ -67,7 +67,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	Queue<String> componentsQueue;
 
 	/* Maps Receive Queue Length to Component*/
-	HashMap<Long, String> mapReceiveQueueLengthToComponents;
+	HashMap<Double, String> mapReceiveQueueLengthToComponents;
 
 	/* Maps the parallelism Hint per Component*/
 	HashMap<String, Integer> mapTaskParallel;
@@ -119,7 +119,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		_last_acks = 0;
 		_last_parallel = 0;
 		_last_comp = "";
-		mapReceiveQueueLengthToComponents = new HashMap<Long, String>();
+		mapReceiveQueueLengthToComponents = new HashMap<Double, String>();
 
 		this.localStormConf = stormConf;
       System.out.println("FEEDBACK_CONF: " + this.localStormConf);
@@ -246,7 +246,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			System.out.println(component + ".congestion = " + Math.round(stats.congestion * 100) + "%");
 
 			if (stats.counter > 0) {
-				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+ ((long)Math.random()), component);
+				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+ Math.random(), component);
 			}
 		}
 	}
@@ -379,8 +379,8 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			} else {
 
 				mapLastAction.clear();
-				long maxVal = 0;
-				for(long kk : mapReceiveQueueLengthToComponents.keySet()) {
+				double maxVal = 0;
+				for(double kk : mapReceiveQueueLengthToComponents.keySet()) {
 					if(kk > maxVal)
 						maxVal = kk;
 				}
