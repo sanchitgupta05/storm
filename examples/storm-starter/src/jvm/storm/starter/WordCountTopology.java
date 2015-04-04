@@ -40,20 +40,18 @@ import java.util.Map;
  * This topology demonstrates Storm's stream groupings and multilang capabilities.
  */
 public class WordCountTopology {
-  public static class SplitSentence extends ShellBolt implements IRichBolt {
-
-    public SplitSentence() {
-      super("python", "splitsentence.py");
-    }
+  public static class SplitSentence extends BaseBasicBolt {
+	@Override
+	public void execute(Tuple tuple, BasicOutputCollector collector) {
+	  String[] words = tuple.getString(0).split(" ");
+	  for (String word : words) {
+		collector.emit(new Values(word));
+	  }
+	}
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
       declarer.declare(new Fields("word"));
-    }
-
-    @Override
-    public Map<String, Object> getComponentConfiguration() {
-      return null;
     }
   }
 
@@ -82,7 +80,7 @@ public class WordCountTopology {
     TopologyBuilder builder = new TopologyBuilder();
 
 	// 5, 8, 12
-    builder.setSpout("spout", new RandomSentenceSpout(), 4);
+    builder.setSpout("spout", new RandomSentenceSpout(), 1);
     builder.setBolt("split", new SplitSentence(), 1).shuffleGrouping("spout");
     builder.setBolt("count", new WordCount(), 1).fieldsGrouping("split", new Fields("word"));
 
@@ -90,8 +88,9 @@ public class WordCountTopology {
     // conf.setDebug(true);
 	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
+    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 2);
 	conf.setNumAckers(1);
+	conf.setMaxSpoutPending(64);
 
     if (args != null && args.length > 0) {
       conf.setNumWorkers(3);
@@ -99,12 +98,12 @@ public class WordCountTopology {
       StormSubmitter.submitTopologyWithProgressBar(args[0], conf, builder.createTopology());
     }
     else {
-      conf.setMaxTaskParallelism(3);
+      conf.setMaxTaskParallelism(10);
 
       LocalCluster cluster = new LocalCluster();
       cluster.submitTopology("word-count", conf, builder.createTopology());
 
-      Thread.sleep(60 * 1000);
+      Thread.sleep(2 * 60 * 1000);
 
       cluster.shutdown();
     }
