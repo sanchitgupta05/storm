@@ -174,7 +174,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	}
 
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
-		long salt = 0;
 		long totalAcks = getTotalAcks(statistics);
 		double elapsedTime = windowSize;
 		mapReceiveQueueLengthToComponents.clear();
@@ -187,8 +186,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
 			if (stats.counter > 0) {
-				if(mapReceiveQueueLengthToComponents.containsKey(stats.receiveQueueLength)) {salt = 1; }
-				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+salt, component); salt = 0;
+				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+ ((long)Math.random()), component); 
 				System.out.println("FEEDBACK " + component + ".sendQueueLength = " + stats.sendQueueLength / stats.counter);
 				System.out.println("FEEDBACK " + component + ".receiveQueueLength = " + stats.receiveQueueLength / stats.counter);
 			}

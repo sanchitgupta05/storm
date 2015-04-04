@@ -88,7 +88,7 @@ public class WordCountTopology {
     // conf.setDebug(true);
 	conf.setStatsSampleRate(1);	
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 2);
+    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
 	conf.setNumAckers(1);
 
 	conf.setMaxSpoutPending(64);
