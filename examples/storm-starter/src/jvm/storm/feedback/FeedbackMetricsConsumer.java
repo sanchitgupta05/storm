@@ -34,6 +34,7 @@ import java.util.Arrays;
 import org.apache.thrift7.TException;
 import org.apache.commons.math3.distribution.NormalDistribution;
 
+import backtype.storm.ILocalCluster;
 import backtype.storm.metric.api.IMetricsConsumer;
 import backtype.storm.task.IErrorReporter;
 import backtype.storm.task.TopologyContext;
@@ -51,6 +52,8 @@ import backtype.storm.utils.Utils;
 import backtype.storm.utils.NimbusClient;
 
 public class FeedbackMetricsConsumer implements IMetricsConsumer {
+	public static ILocalCluster localCluster;
+
 	private Map localStormConf;
 	public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
 	private TopologyContext _context;
@@ -98,6 +101,8 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		currThroughput = 0;
 		numWindowsToPass = 0;
 		numAlgorithmRun = 0;
+
+		System.out.println("hello world " + localCluster.getClusterInfo());
 
 		// set up data collection
 		dpwindow = new HashMap<Integer, DataPointWindow>();
