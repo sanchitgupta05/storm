@@ -418,6 +418,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				}
 				component = mapReceiveQueueLengthToComponents.remove(maxVal);
 				taskParallelHint = mapTaskParallel.get(component);
+				if(taskParallelHint == null) {break;}
 				if(taskParallelHint < MAX_PARALLELISM_HINT) {
 					mapTaskParallel.put(component, taskParallelHint++);
 				} else {
