@@ -22,6 +22,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.*;
+
 
 //import org.apache.thrift.TException;
 import org.apache.thrift7.TException;
@@ -196,64 +199,304 @@ import backtype.storm.utils.NimbusClient;
 
 public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	private Map localStormConf;
+	public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
+	private TopologyContext _context;
 
-    public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
-
-    @Override
-    public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
+	Queue<String> fixComponentsList;
+	HashMap<String, Integer> mapTaskParallel;
+	static Integer MAX_PARALLELISM_HINT = 4;
+	//private static Integer DESIRED_ACKS_PER_SECONDS = XXX ;
+	static LastAction _lastAction;
 		
-		  this.localStormConf = stormConf;
-		  System.out.println("FEEDBACK_CONF: " + this.localStormConf);
-        NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
-        // Nimbus.Iface nimbusInterface = null;
-        // client.getClient().getClusterInfo();
-        try {
-        //     // LOG.info("");
-            client.getClient().getClusterInfo();
-        } catch(AuthorizationException e) {
+	 @Override
+    public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
+		_context = context;
+		lastUptimeSecs = 0;
+		
+		_lastAction = new LastAction();
+		fixComponentsList = new LinkedList<String>();
+		mapTaskParallel = new HashMap<String, Integer>();
+		getComponentsOfTopology();
+		_last_acks = 0;
+		_last_parallel = 0;
+		_last_comp = "";
+
+		reset();
+		
+		this.localStormConf = stormConf;
+      System.out.println("FEEDBACK_CONF: " + this.localStormConf);
+  /*  NimbusClient client = NimbusClient.getConfiguredClient(stormConf);  
+		  try {
+            
+				client.getClient().getClusterInfo();
+        
+		  } catch(AuthorizationException e) {
             LOG.warn("exception: "+e.get_msg());
             // throw e;
         } catch(TException msg) {
             LOG.warn("exception: "+ msg);
-        }finally {
+        
+		  } finally {
             client.close();
         }
-	
+	*/
 	}
-	
-	// public void contactNimbus() {
-	// 	getClusterInfo();
-	// }
 
-    static private String padding = "                       ";
+	private void getComponentsOfTopology() {
+		for (int i=0; i<_context.getTaskToComponent().size(); i++) {
+			String component = _context.getTaskToComponent().get(i);
+			if (component != null) {
+				fixComponentsList.add(component);
+				mapTaskParallel.put(component, 1);
+			}
+		}
+	}
+		
+   static private String padding = "                       ";
+
+	public class ComponentStatistics {
+		public long ackCount;
+		public double ackLatency;
+		public long receiveQueueLength;
+		public long sendQueueLength;
+		public long counter;
+
+		public ComponentStatistics() {
+			ackCount = 0;
+			ackLatency = 0;
+			receiveQueueLength = 0;
+			sendQueueLength = 0;
+			counter = 0;
+		}
+
+		public void processDataPoints(Map<String, Object> dpMap) {
+			counter++;
+			if (dpMap.containsKey("__ack-count")
+				&& dpMap.containsKey("__process-latency")) {
+				long ackCount = 0;
+				Map<String, Long> ackCountMap = (Map<String, Long>)dpMap.get("__ack-count");
+				for (Long val : ackCountMap.values()) {
+					ackCount += val;
+				}
+				
+				double ackLatency = 0;
+				Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__process-latency");
+				for (Double val : ackLatencyMap.values()) {
+					ackLatency += val;
+				}
+
+				if (ackCount > 0) {
+					this.ackLatency = (ackLatency * ackCount + this.ackLatency * this.ackCount) / (ackCount + this.ackCount);
+					this.ackCount += ackCount;
+				}
+			}
+			if (dpMap.containsKey("__receive")) {
+				Map<String, Long> receive =
+					(Map<String, Long>)dpMap.get("__receive");
+				receiveQueueLength += receive.get("population");
+			}
+			if (dpMap.containsKey("__sendqueue")) {
+				Map<String, Long> send =
+					(Map<String, Long>)dpMap.get("__sendqueue");
+				sendQueueLength += send.get("population");
+			}
+		}
+	}
+
+	long totalAcks;
+	double totalSeconds;
+	double lastUptimeSecs;
+	double currThroughput;
+
+
+	Map<String, ComponentStatistics> statistics;
+	Map<Integer, Boolean> seen;
+
+	private boolean isMetricComponent(String component) {
+		String metricPrefix = "__metrics";
+		return component.length() >= metricPrefix.length()
+			&& metricPrefix.equals(component.substring(0, metricPrefix.length()));
+	}
+
+	public void reset() {
+		totalAcks = 0;
+		totalSeconds = 0;
+		currThroughput = 0;
+		statistics = new HashMap<String, ComponentStatistics>();
+
+		seen = new HashMap<Integer, Boolean>();
+		seen.put(-1, false);
+		for (int i=0; i<_context.getTaskToComponent().size(); i++) {
+			String component = _context.getTaskToComponent().get(i);
+			if (component != null) {
+				if (!isMetricComponent(component)) {
+					seen.put(i, false);
+				}
+			}
+		}
+	}
+
+	public void onReceivedStatistics() {
+		System.out.println("FEEDBACK RECEIVED DATA");
+		System.out.println("FEEDBACK acks/second = " + ((double)totalAcks / totalSeconds) + " and seconds = " + totalSeconds);
+		for (String component : statistics.keySet()) {
+			ComponentStatistics cstats = statistics.get(component);
+			System.out.println("FEEDBACK " + component + ".sendQueueLength = " + cstats.sendQueueLength / cstats.counter);
+			System.out.println("FEEDBACK " + component + ".receiveQueueLength = " + cstats.receiveQueueLength / cstats.counter);
+			System.out.println("FEEDBACK " + component + ".ackCount = " + cstats.ackCount);
+			System.out.println("FEEDBACK " + component + ".ackLatency = " + cstats.ackLatency);
+		}
+	}
 
     @Override
     public void handleDataPoints(TaskInfo taskInfo, Collection<DataPoint> dataPoints) {
-		// taskInfo.timestamp
-		// taskInfo.srcWorkerHost, taskInfo.srcWorkerPort
-		// taskInfo.srcTaskId
-		// taskInfo.srcComponentId
+		// Load Datapoints into Map
+		Map<String, Object> dpMap = new HashMap<String, Object>();
+		for (DataPoint p : dataPoints) {
+			dpMap.put(p.name, p.value);
+		}
 
-		// dataPoint.name dataPoint.value
+		// Update statistics for given task
+		ComponentStatistics stats = statistics.get(taskInfo.srcComponentId);
+		if (stats == null)
+			stats = new ComponentStatistics();
+		stats.processDataPoints(dpMap);
+		statistics.put(taskInfo.srcComponentId, stats);
 
-        StringBuilder sb = new StringBuilder();
-        String header = String.format("FEEDBACK %d\t%15s:%-4d\t%3d:%-11s\t",
-            taskInfo.timestamp,
-            taskInfo.srcWorkerHost, taskInfo.srcWorkerPort,
-            taskInfo.srcTaskId,
-            taskInfo.srcComponentId);
-        sb.append(header);
-        for (DataPoint p : dataPoints) {
-            sb.delete(header.length(), sb.length());
-            sb.append(p.name)
-                .append(padding).delete(header.length()+23,sb.length()).append("\t")
-                .append(p.value);
-			System.out.println(sb.toString());
-        }
+		// If the task is a spout, increment totalAcks
+		if (dpMap.containsKey("__ack-count")) {
+			Map<String, Long> ackCounts = (Map<String, Long>)dpMap.get("__ack-count");
+			if (ackCounts.containsKey("default")) {
+				totalAcks += ackCounts.get("default");
+			}
+		}
+
+		// If the task is a system task, increment the total seconds
+		if (taskInfo.srcTaskId == -1) {
+			double uptimeSecs = (Double)dpMap.get("uptimeSecs");
+			totalSeconds += (uptimeSecs - lastUptimeSecs);
+			lastUptimeSecs = uptimeSecs;
+		}
+
+		if(totalSeconds != 0 && totalAcks != 0) {
+			currThroughput = (double) totalAcks/totalSeconds;
+		}
+
+		// Check for whether we've seen all the tasks
+		seen.put(taskInfo.srcTaskId, true);
+		boolean done = true;
+		for (boolean val : seen.values()) {
+			done = done && val;
+		}
+		if (done) {
+			onReceivedStatistics();
+			reset();
+		}
+
+        // StringBuilder sb = new StringBuilder();
+        // String header = String.format("FEEDBACK %d\t%15s:%-4d\t%3d:%-11s\t",
+        //     taskInfo.timestamp,
+        //     taskInfo.srcWorkerHost, taskInfo.srcWorkerPort,
+        //     taskInfo.srcTaskId,
+        //     taskInfo.srcComponentId);
+        // sb.append(header);
+        // for (DataPoint p : dataPoints) {
+        //     sb.delete(header.length(), sb.length());
+        //     sb.append(p.name)
+        //         .append(padding).delete(header.length()+23,sb.length()).append("\t")
+        //         .append(p.value);
+		  // 	System.out.println(sb.toString());
+        // }
     }
 
     @Override
     public void cleanup() { }
 
+	// Stores the information about the last action performed by the algorithm 
+	public class LastAction {
+		public String component;
+		public Integer oldParallelismHint;
+		public double oldAcksPerSecond;
+		
+		public  LastAction() {
+			component = "";
+			oldAcksPerSecond = 0;
+			oldParallelismHint = 0;
+		}	
 
+		public void updateAction(String comp, Integer parallelHint, double acksPerSecond) {
+			component = comp;
+			oldParallelismHint = parallelHint;
+			oldAcksPerSecond = acksPerSecond;
+		}
+	}  
+	
+	public void runAlgorithm() {
+		
+		if(currThroughput != 0) {
+			__algorithm();
+		}
+	}
+
+		
+	String _last_comp;
+	Integer _last_parallel;
+	double _last_acks;
+
+	public void __algorithm() {
+		/* XXX check the current throughput with the desired throughtput */
+		Integer taskParallelHint;
+		String component;	
+		
+		if(currThroughput <= _lastAction.oldAcksPerSecond) {		// XXX add a guard to the currentThroughput
+			// revert to last Action
+			component = _lastAction.component;
+			taskParallelHint = _last_parallel;
+		} else {	
+			
+			_lastAction.updateAction(_last_comp, _last_parallel, _last_acks);
+			component = fixComponentsList.poll();
+			taskParallelHint = mapTaskParallel.get(component);
+			
+			if(taskParallelHint < MAX_PARALLELISM_HINT)  { 	
+				mapTaskParallel.put(component, taskParallelHint);
+				_last_comp = component;
+				_last_parallel = taskParallelHint;
+				_last_acks = currThroughput;
+			}	
+			
+			fixComponentsList.add(component);
+		}
+		
+		// XXX ROHIT:  Call rebalance from NimbusClient
+	}
+
+
+	// Check the queue sizes
+	public void __algorithm2() {
+	
+		Integer taskParallelHint;
+		String component;	
+		
+		if(currThroughput <= _lastAction.oldAcksPerSecond) {		// XXX add a guard to the currentThroughput
+			// revert to last Action
+			component = _lastAction.component;
+			taskParallelHint = _last_parallel;
+		} else {	
+			
+			_lastAction.updateAction(_last_comp, _last_parallel, _last_acks);
+			component = fixComponentsList.poll();
+			taskParallelHint = mapTaskParallel.get(component);
+			
+			if(taskParallelHint < MAX_PARALLELISM_HINT)  { 	
+				mapTaskParallel.put(component, taskParallelHint);
+				_last_comp = component;
+				_last_parallel = taskParallelHint;
+				_last_acks = currThroughput;
+			}	
+			
+			fixComponentsList.add(component);
+		}
+	}
 }
+
