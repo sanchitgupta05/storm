@@ -32,6 +32,7 @@ public class RandomSentenceSpout extends BaseRichSpout {
   SpoutOutputCollector _collector;
   Random _rand;
 
+  long lastMS = 0;
 
   @Override
   public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
@@ -41,14 +42,31 @@ public class RandomSentenceSpout extends BaseRichSpout {
 
   @Override
   public void nextTuple() {
-    Utils.sleep(10);
+    // Utils.sleep(100);
+
+	// long currentMS = System.currentTimeMillis();
+	// if (lastMS == 0) {
+	//   lastMS = currentMS;
+	//   return;
+	// }
+	// long deltaMS = currentMS - lastMS;
+	// lastMS = currentMS;
+
+	// // // constant throughput
+	// // int k = 10000;
+	// // int n = (int)(k * (float)deltaMS / 1000);
+	// // if (n > 1000) {
+	// //   n = 1000;
+	// // }
+
+	// int n = 1;
+	// System.out.println(deltaMS + ", " + n);
+
     String[] sentences = new String[]{ "the cow jumped over the moon", "an apple a day keeps the doctor away",
         "four score and seven years ago", "snow white and the seven dwarfs", "i am at two with nature" };
 
-	for (int i=0; i<25; i++) {
-		String sentence = sentences[_rand.nextInt(sentences.length)];
-		_collector.emit(new Values(sentence), _rand.nextDouble());
-	}
+	String sentence = sentences[_rand.nextInt(sentences.length)];
+	_collector.emit(new Values(sentence), _rand.nextDouble());
   }
 
   @Override

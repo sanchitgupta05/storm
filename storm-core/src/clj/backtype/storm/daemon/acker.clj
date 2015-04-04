@@ -14,6 +14,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 (ns backtype.storm.daemon.acker
+  (:import [backtype.storm.metric.api MultiCountMetric])
   (:import [backtype.storm.task OutputCollector TopologyContext IBolt])
   (:import [backtype.storm.tuple Tuple Fields])
   (:import [backtype.storm.utils RotatingMap MutableObject])
@@ -42,11 +43,15 @@
 
 (defn mk-acker-bolt []
   (let [output-collector (MutableObject.)
-        pending (MutableObject.)]
+        pending (MutableObject.)
+        last-acked (MutableObject.)]
     (reify IBolt
       (^void prepare [this ^Map storm-conf ^TopologyContext context ^OutputCollector collector]
                (.setObject output-collector collector)
                (.setObject pending (RotatingMap. 2))
+               (.setObject last-acked (MultiCountMetric.))
+               (.registerMetric context (str "__last-acked")
+                                (.getObject last-acked) 1)
                )
       (^void execute [this ^Tuple tuple]
              (let [^RotatingMap pending (.getObject pending)
@@ -67,6 +72,8 @@
                      (cond (= 0 (:val curr))
                            (do
                              (.remove pending id)
+                             (let [m (.getObject last-acked)]
+                               (-> m (.scope (.getSourceComponent tuple)) (.incrBy 1)))
                              (acker-emit-direct output-collector
                                                 (:spout-task curr)
                                                 ACKER-ACK-STREAM-ID
