@@ -23,11 +23,12 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Queue;
-import java.util.ArrayDeque;
+import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.apache.thrift7.TException;
+import org.apache.commons.math3.distribution.NormalDistribution;
 
 import backtype.storm.metric.api.IMetricsConsumer;
 import backtype.storm.task.IErrorReporter;
@@ -80,6 +81,33 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		}
 	}
 
+	private double mean(List<Double> a) {
+		double sum = 0;
+		for (Double val : a) {
+			sum += val;
+		}
+		return sum / a.size();
+	}
+
+	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > 0.95
+	public boolean significantIncrease(List<Double> a, List<Double> b) {
+		double meanA = mean(a);
+		double sd = 0;
+		for (Double val : a) {
+			sd += (val - meanA) * (val - meanA);
+		}
+		sd = Math.sqrt(sd / (a.size() - 1));
+
+		double meanB = mean(b);
+		NormalDistribution dist = new NormalDistribution(meanA, sd);
+		double p = dist.cumulativeProbability(meanB);
+
+		boolean significant = (p > 0.95);
+		System.out.println("p-value=" + p + ", " +
+						   (significant ? "increase" : "no increase"));
+		return significant;
+	}
+
 	// Aggregate the collected data points into component-specific metrics
 	public Map<String, ComponentStatistics> collectStatistics() {
 		Map<String, ComponentStatistics> result = new HashMap<String, ComponentStatistics>();
@@ -120,9 +148,26 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		return totalAcks;
 	}
 
+	List<Double> record = new ArrayList<Double>();
+
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
 		long totalAcks = getTotalAcks(statistics);
 		double elapsedTime = windowSize;
+
+		record.add((double)totalAcks / elapsedTime);
+		if (record.size() > 5) {
+			// hard coded data for testing
+			Double[] sample = new Double[] {
+				945.6,
+				1011.4,
+				950.8,
+				1013.6,
+				1013.6
+			};
+			significantIncrease(
+				Arrays.asList(sample),
+				record.subList(record.size()-5, record.size()));
+		}
 
 		System.out.println("FEEDBACK acks/second: " + totalAcks / elapsedTime);
 
@@ -130,17 +175,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			ComponentStatistics stats = statistics.get(component);
 			System.out.println(component + ".congestion = " + Math.round(stats.congestion * 100) + "%");
 		}
-
-		// for (String component : statistics.keySet()) {
-		// 	ComponentStatistics stats = statistics.get(component);
-		// 	if (stats.counter > 0) {
-		// 		System.out.println("FEEDBACK " + component + ".sendQueueLength = " + stats.sendQueueLength / stats.counter);
-		// 		System.out.println("FEEDBACK " + component + ".receiveQueueLength = " + stats.receiveQueueLength / stats.counter);
-		// 	}
-		// 	System.out.println("FEEDBACK " + component + ".ackCount = " + stats.ackCount);
-		// 	System.out.println("FEEDBACK " + component + ".ackLatency = " + stats.ackLatency);
-		// 	System.out.println("FEEDBACK " + component + ".congestion = " + stats.congestion);
-		// }
 	}
 
     @Override

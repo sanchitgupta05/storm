@@ -82,7 +82,7 @@ public class WordCountTopology {
 	// 5, 8, 12
     builder.setSpout("spout", new RandomSentenceSpout(), 1);
     builder.setBolt("split", new SplitSentence(), 1).shuffleGrouping("spout");
-    builder.setBolt("count", new WordCount(), 1).fieldsGrouping("split", new Fields("word"));
+    builder.setBolt("count", new WordCount(), 3).fieldsGrouping("split", new Fields("word"));
     builder.setBolt("split2", new SplitSentence(), 1).shuffleGrouping("spout");
     builder.setBolt("count2", new WordCount(), 2).fieldsGrouping("split2", new Fields("word"));
 
