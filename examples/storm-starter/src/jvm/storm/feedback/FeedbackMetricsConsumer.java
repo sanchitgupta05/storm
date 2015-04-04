@@ -24,12 +24,15 @@ import java.lang.Math;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.apache.thrift7.TException;
+import org.apache.commons.math3.distribution.NormalDistribution;
 
 import backtype.storm.metric.api.IMetricsConsumer;
 import backtype.storm.task.IErrorReporter;
@@ -59,19 +62,19 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	Integer numWindowsToPass;
 	Integer numBottlenecksToFix;
 	Integer numAlgorithmRun;
-	
+
 	/* A Queue of all the components in the Topology */
 	Queue<String> componentsQueue;
-	
+
 	/* Maps Receive Queue Length to Component*/
 	HashMap<Long, String> mapReceiveQueueLengthToComponents;
 
 	/* Maps the parallelism Hint per Component*/
 	HashMap<String, Integer> mapTaskParallel;
-	
+
 	/* For each Component, keep track of the lastAction taken by the algorithm*/
-	HashMap<String, LastAction> mapLastAction;	
-	
+	HashMap<String, LastAction> mapLastAction;
+
 	/* For each task, keep track of a window of data points */
 	private Map<Integer, DataPointWindow> dpwindow;
 
@@ -90,11 +93,13 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	 @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		_context = context;
-	
+
 		windowSize = 5;
 		currThroughput = 0;
 		numWindowsToPass = 0;
 		numAlgorithmRun = 0;
+
+		// set up data collection
 		dpwindow = new HashMap<Integer, DataPointWindow>();
 		counter = new HashMap<Integer, Integer>();
 		mapLastAction = new HashMap<String, LastAction>();
@@ -118,20 +123,47 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 		this.localStormConf = stormConf;
       System.out.println("FEEDBACK_CONF: " + this.localStormConf);
-      /*NimbusClient client = NimbusClient.getConfiguredClient(stormConf);  
+      /*NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
 		  try {
-            
+
 				client.getClient().getClusterInfo();
-        
+
 		  } catch(AuthorizationException e) {
             LOG.warn("exception: "+e.get_msg());
             // throw e;
         } catch(TException msg) {
             LOG.warn("exception: "+ msg);
-        
+
 		  } finally {
             client.close();
         } */
+	}
+
+	private double mean(List<Double> a) {
+		double sum = 0;
+		for (Double val : a) {
+			sum += val;
+		}
+		return sum / a.size();
+	}
+
+	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > 0.95
+	public boolean significantIncrease(List<Double> a, List<Double> b) {
+		double meanA = mean(a);
+		double sd = 0;
+		for (Double val : a) {
+			sd += (val - meanA) * (val - meanA);
+		}
+		sd = Math.sqrt(sd / (a.size() - 1));
+
+		double meanB = mean(b);
+		NormalDistribution dist = new NormalDistribution(meanA, sd);
+		double p = dist.cumulativeProbability(meanB);
+
+		boolean significant = (p > 0.95);
+		System.out.println("p-value=" + p + ", " +
+						   (significant ? "increase" : "no increase"));
+		return significant;
 	}
 
 	private void getComponentsOfTopology() {
@@ -143,7 +175,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			}
 		}
 	}
-		
+
 	// Aggregate the collected data points into component-specific metrics
 	public Map<String, ComponentStatistics> collectStatistics() {
 		Map<String, ComponentStatistics> result = new HashMap<String, ComponentStatistics>();
@@ -159,6 +191,17 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				}
 			}
 		}
+
+		// calculate the normalized congestion value (num queued / num processed)
+		double total = 0;
+		for (ComponentStatistics stats : result.values()) {
+			stats.congestion = (double)stats.receiveQueueLength / stats.ackCount;
+			total += stats.congestion;
+		}
+		for (ComponentStatistics stats : result.values()) {
+			stats.congestion /= total;
+		}
+
 		return result;
 	}
 
@@ -173,26 +216,38 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		return totalAcks;
 	}
 
+	List<Double> record = new ArrayList<Double>();
+
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
 		long totalAcks = getTotalAcks(statistics);
 		double elapsedTime = windowSize;
 		mapReceiveQueueLengthToComponents.clear();
 		currThroughput = totalAcks/elapsedTime;
 
-		System.out.println("FEEDBACK RECEIVED DATA");
-		System.out.println("Total Seconds: " + elapsedTime);
-		System.out.println("Acks/second: " + currThroughput);
-			
+		record.add((double)totalAcks / elapsedTime);
+		if (record.size() > 5) {
+			// hard coded data for testing
+			Double[] sample = new Double[] {
+				945.6,
+				1011.4,
+				950.8,
+				1013.6,
+				1013.6
+			};
+			significantIncrease(
+				Arrays.asList(sample),
+				record.subList(record.size()-5, record.size()));
+		}
+
+		System.out.println("FEEDBACK acks/second: " + totalAcks / elapsedTime);
+
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".congestion = " + Math.round(stats.congestion * 100) + "%");
+
 			if (stats.counter > 0) {
-				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+ ((long)Math.random()), component); 
-				System.out.println("FEEDBACK " + component + ".sendQueueLength = " + stats.sendQueueLength / stats.counter);
-				System.out.println("FEEDBACK " + component + ".receiveQueueLength = " + stats.receiveQueueLength / stats.counter);
+				mapReceiveQueueLengthToComponents.put(stats.receiveQueueLength+ ((long)Math.random()), component);
 			}
-			System.out.println("FEEDBACK " + component + ".ackCount = " + stats.ackCount);
-			System.out.println("FEEDBACK " + component + ".ackLatency = " + stats.ackLatency);
-			System.out.println("FEEDBACK " + component + ".capacity = " + (1000 / stats.ackLatency) * elapsedTime);
 		}
 	}
 
@@ -210,7 +265,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		// Every so often, report the statistics & run the algorithm
 		if (taskId == -1 && count > windowSize) {
 			printStatistics(collectStatistics());
-			runAlgorithm();
+			// runAlgorithm();
 		}
 
 		// Update the window
@@ -222,108 +277,22 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
     }
 
-	class DataPointWindow {
-		public ArrayList<Map<String, Object>> dps;
-		public int k;
-
-		public DataPointWindow(int k) {
-			dps = new ArrayList<Map<String, Object>>(k);
-			for (int i=0; i<k; i++) {
-				dps.add(null);
-			}
-			this.k = k;
-		}
-
-		void putDataPoints(int counter, Map<String, Object> dataPoints) {
-			dps.set(counter % k, dataPoints);
-		}
-	}
-
-	class ComponentStatistics {
-		public boolean isSpout;
-
-		public long ackCount;
-		public double ackLatency;
-		public long receiveQueueLength;
-		public long sendQueueLength;
-		public long counter;
-
-		public ComponentStatistics() {
-			isSpout = false;
-			ackCount = 0;
-			ackLatency = 0;
-			receiveQueueLength = 0;
-			sendQueueLength = 0;
-			counter = 0;
-		}
-
-		private void processBolt(Map<String, Object> dpMap) {
-			long ackCount = 0;
-			Map<String, Long> ackCountMap = (Map<String, Long>)dpMap.get("__ack-count");
-			for (Long val : ackCountMap.values()) {
-				ackCount += val;
-			}
-
-			double ackLatency = 0;
-			Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__process-latency");
-			for (Double val : ackLatencyMap.values()) {
-				ackLatency += val;
-			}
-
-			if (ackCount > 0) {
-				this.ackLatency = (ackLatency * ackCount + this.ackLatency * this.ackCount) / (ackCount + this.ackCount);
-				this.ackCount += ackCount;
-			}
-		}
-
-		private void processSpout(Map<String, Object> dpMap) {
-			isSpout = true;
-
-			Map<String, Long> ackCounts = (Map<String, Long>)dpMap.get("__ack-count");
-			if (ackCounts.containsKey("default")) {
-				ackCount += ackCounts.get("default");
-			}
-		}
-
-		public void processDataPoints(Map<String, Object> dpMap) {
-			counter++;
-			if (dpMap.containsKey("__ack-count")) {
-				if (dpMap.containsKey("__execute-latency")) {
-					processBolt(dpMap);
-				} else {
-					processSpout(dpMap);
-				}
-			}
-
-			if (dpMap.containsKey("__receive")) {
-				Map<String, Long> receive =
-					(Map<String, Long>)dpMap.get("__receive");
-				receiveQueueLength += receive.get("population");
-			}
-			if (dpMap.containsKey("__sendqueue")) {
-				Map<String, Long> send =
-					(Map<String, Long>)dpMap.get("__sendqueue");
-				sendQueueLength += send.get("population");
-			}
-		}
-	}
-
     @Override
     public void cleanup() { }
 
-	// Stores the information about the last action performed by the algorithm 
+	// Stores the information about the last action performed by the algorithm
 	public class LastAction {
 		public String component;
 		public Integer oldParallelismHint;
 		public double oldAcksPerSecond;
 		Boolean oldStartAParallelBolt;
-		
+
 		public  LastAction() {
 			component = "";
 			oldAcksPerSecond = 0;
 			oldParallelismHint = 0;
 			oldStartAParallelBolt = false;
-		}	
+		}
 
 		public void updateAction(String comp, Integer parallelHint, double acksPerSecond, Boolean startABolt) {
 			component = comp;
@@ -331,8 +300,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			oldAcksPerSecond = acksPerSecond;
 			oldStartAParallelBolt = startABolt;
 		}
-	}  
-	
+	}
 
 	private void runAlgorithm() {
 		numWindowsToPass++;
@@ -355,25 +323,25 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	Boolean _last_startABolt;
 
 	/* __algorithm() --
-	 * A simple Round Robin algorithm that changes either the # of threads/componenet or 
+	 * A simple Round Robin algorithm that changes either the # of threads/componenet or
 	 * adds a new parallel bolt to Storm (if possible)i
-	 */ 
+	 */
 	private void __algorithm() {
 
 		Integer taskParallelHint;
-		String component;	
-		
+		String component;
+
 		if(currThroughput <= _lastAction.oldAcksPerSecond) {
 			/* revert to last Action */
 			component = _lastAction.component;
 			taskParallelHint = _lastAction.oldParallelismHint;
-			
-		} else {	
+
+		} else {
 			_lastAction.updateAction(_last_comp, _last_parallel, _last_acks, _last_startABolt);
 			component = componentsQueue.poll();
 			taskParallelHint = mapTaskParallel.get(component);
-			
-			if(taskParallelHint < MAX_PARALLELISM_HINT)  { 	
+
+			if(taskParallelHint < MAX_PARALLELISM_HINT)  {
 				mapTaskParallel.put(component, taskParallelHint++);	// updated the new parallelhint for the component in hashmap
 				_last_comp = component;
 				_last_parallel = taskParallelHint;
@@ -381,18 +349,18 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				_last_startABolt = false;
 			} else {
 				/* TODO ROHIT: Add a parallel bolt on a new node*/
-				
+
 				/* update the insertion of the newly added bolt to all data structures*/
 				_last_startABolt = true;
 			}
 			componentsQueue.add(component);
 		}
 		// TODO ROHIT:  Call rebalance from NimbusClient -- I have updated the new taskParallelHint above
-	
+
 	}
 
 	/* __algorithm2()
-	 * Try to fix a combinatorial combination of 'k' largest bottlenecks by 
+	 * Try to fix a combinatorial combination of 'k' largest bottlenecks by
 	 * treating the Queue Size as the performance metric.
 	 */
 	private void __algorithm2() {
@@ -402,16 +370,16 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		for(Integer i = 0; i < numBottlenecksToFix; i++) {
 			taskParallelHint = 0;
 			startABolt = false;
-			
+
 			/* Check for older changes and need to revert */
 			if(currThroughput <= _last_acks) {
 				if(!mapLastAction.isEmpty()) {
 						/* Implement Later  */
 				}
 			} else {
-			
+
 				mapLastAction.clear();
-				long maxVal = 0;	
+				long maxVal = 0;
 				for(long kk : mapReceiveQueueLengthToComponents.keySet()) {
 					if(kk > maxVal)
 						maxVal = kk;
@@ -433,9 +401,94 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				_last_acks = currThroughput;
 			}
 			/* TODO ROHIT: Call rebalance from NimbusClient -- I have updated the new taskParallelHint above */
-		
+		}
+	}
+}
+
+class DataPointWindow {
+	public ArrayList<Map<String, Object>> dps;
+	public int k;
+
+	public DataPointWindow(int k) {
+		dps = new ArrayList<Map<String, Object>>(k);
+		for (int i=0; i<k; i++) {
+			dps.add(null);
+		}
+		this.k = k;
+	}
+
+	void putDataPoints(int counter, Map<String, Object> dataPoints) {
+		dps.set(counter % k, dataPoints);
+	}
+}
+
+class ComponentStatistics {
+	public boolean isSpout;
+
+	public long ackCount;
+	public double ackLatency;
+	public long receiveQueueLength;
+	public long sendQueueLength;
+	public double congestion;
+	public long counter;
+
+	public ComponentStatistics() {
+		isSpout = false;
+		ackCount = 0;
+		ackLatency = 0;
+		receiveQueueLength = 0;
+		sendQueueLength = 0;
+		congestion = 0;
+		counter = 0;
+	}
+
+	private void processBolt(Map<String, Object> dpMap) {
+		long ackCount = 0;
+		Map<String, Long> ackCountMap = (Map<String, Long>)dpMap.get("__ack-count");
+		for (Long val : ackCountMap.values()) {
+			ackCount += val;
+		}
+
+		double ackLatency = 0;
+		Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__process-latency");
+		for (Double val : ackLatencyMap.values()) {
+			ackLatency += val;
+		}
+
+		if (ackCount > 0) {
+			this.ackLatency = (ackLatency * ackCount + this.ackLatency * this.ackCount) / (ackCount + this.ackCount);
+			this.ackCount += ackCount;
 		}
 	}
 
-}
+	private void processSpout(Map<String, Object> dpMap) {
+		isSpout = true;
 
+		Map<String, Long> ackCounts = (Map<String, Long>)dpMap.get("__ack-count");
+		if (ackCounts.containsKey("default")) {
+			ackCount += ackCounts.get("default");
+		}
+	}
+
+	public void processDataPoints(Map<String, Object> dpMap) {
+		counter++;
+		if (dpMap.containsKey("__ack-count")) {
+			if (dpMap.containsKey("__execute-latency")) {
+				processBolt(dpMap);
+			} else {
+				processSpout(dpMap);
+			}
+		}
+
+		if (dpMap.containsKey("__receive")) {
+			Map<String, Long> receive =
+				(Map<String, Long>)dpMap.get("__receive");
+			receiveQueueLength += receive.get("population");
+		}
+		if (dpMap.containsKey("__sendqueue")) {
+			Map<String, Long> send =
+				(Map<String, Long>)dpMap.get("__sendqueue");
+			sendQueueLength += send.get("population");
+		}
+	}
+}

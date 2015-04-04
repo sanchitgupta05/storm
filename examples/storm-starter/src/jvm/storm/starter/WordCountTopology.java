@@ -82,15 +82,16 @@ public class WordCountTopology {
 	// 5, 8, 12
     builder.setSpout("spout", new RandomSentenceSpout(), 1);
     builder.setBolt("split", new SplitSentence(), 1).shuffleGrouping("spout");
-    builder.setBolt("count", new WordCount(), 1).fieldsGrouping("split", new Fields("word"));
+    builder.setBolt("count", new WordCount(), 3).fieldsGrouping("split", new Fields("word"));
+    builder.setBolt("split2", new SplitSentence(), 1).shuffleGrouping("spout");
+    builder.setBolt("count2", new WordCount(), 2).fieldsGrouping("split2", new Fields("word"));
 
     Config conf = new Config();
     // conf.setDebug(true);
-	conf.setStatsSampleRate(1);	
+	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
-	conf.setNumAckers(1);
-
+    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 2);
+	conf.setNumAckers(3);
 	conf.setMaxSpoutPending(64);
 
     if (args != null && args.length > 0) {
