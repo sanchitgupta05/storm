@@ -19,9 +19,14 @@ package storm.feedback;
 
 import backtype.storm.ILocalCluster;
 import backtype.storm.generated.*;
+import backtype.storm.task.TopologyContext;
+import java.util.Map;
 
 public interface IFeedbackAlgorithm {
-	boolean isInitialized();
+	boolean isPrepared();
+	void prepare(Map stormConf, TopologyContext context);	
 	void initialize(ILocalCluster cluster, String name, StormTopology topology);
-	void update(ComponentStatistics statistics);
+	void update(double acksPerSecond, Map<String, ComponentStatistics> statistics);
 }
+
+
