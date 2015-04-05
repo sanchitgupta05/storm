@@ -32,6 +32,9 @@ import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 import storm.starter.spout.RandomSentenceSpout;
 import storm.feedback.FeedbackMetricsConsumer;
+import storm.feedback.RoundRobin;
+
+import backtype.storm.generated.StormTopology;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -97,6 +100,8 @@ public class WordCountTopology {
 	conf.setMaxTaskParallelism(10);
 	conf.setMaxSpoutPending(64);
 
+
+
     if (args != null && args.length > 0) {
       conf.setNumWorkers(3);
 
@@ -105,10 +110,15 @@ public class WordCountTopology {
     else {
       conf.setMaxTaskParallelism(10);
 
-	     String topologyName = "word-count";
-
       LocalCluster cluster = new LocalCluster();
-      cluster.submitTopology(topologyName, conf, builder.createTopology());
+	  String topologyName = "word-count";
+	  StormTopology topology = builder.createTopology();
+
+	  RoundRobin algorithm = new RoundRobin();
+	  algorithm.initialize(cluster, topologyName, topology);
+	  FeedbackMetricsConsumer.algorithm = algorithm;
+
+      cluster.submitTopology(topologyName, conf, topology);
 
       Thread.sleep(5 * 60 * 1000);
 

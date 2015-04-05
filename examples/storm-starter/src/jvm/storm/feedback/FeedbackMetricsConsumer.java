@@ -67,12 +67,15 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	 @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		_context = context;
-		
-		if (algorithm != null && 
-			!algorithm.isPrepared()) {
-			algorithm.prepare();
+
+		if (algorithm != null) {
+			if (algorithm.isPrepared()) {
+				algorithm.onRebalance();
+			} else {
+				algorithm.prepare(stormConf, context);
+			}
 		}
-		
+
 		windowSize = 5;
 
 		// set up data collection

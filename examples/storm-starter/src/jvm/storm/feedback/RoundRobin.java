@@ -46,7 +46,7 @@ import backtype.storm.utils.NimbusClient;
 
 public class RoundRobin implements IFeedbackAlgorithm {
 
-	private static ILocalCluster localCluster; 
+	private static ILocalCluster localCluster;
 	private TopologyContext _context;
 	static Integer MAX_PARALLELISM_HINT = 10;
 	private static Integer DESIRED_ACKS_PER_SECONDS = 3000 ;
@@ -58,7 +58,8 @@ public class RoundRobin implements IFeedbackAlgorithm {
 
 	public static String localTopologyName;
 
-	Boolean prepared;
+	boolean prepared;
+	boolean waitingForRebalance;
 
 	/* A Queue of all the components in the Topology */
 	Queue<String> componentsQueue;
@@ -75,19 +76,19 @@ public class RoundRobin implements IFeedbackAlgorithm {
 	public boolean isPrepared() {
 		return prepared;
 	}
-	
-	
+
 	public void initialize(ILocalCluster cluster, String name, StormTopology topology) {
 		localCluster = cluster;
 		currThroughput = 0;
 		numWindowsToPass = 0;
 		numAlgorithmRun = 0;
+		waitingForRebalance = false;
 
 		mapLastAction = new HashMap<String, LastAction>();
 		_lastAction = new LastAction();
 		componentsQueue = new LinkedList<String>();
 		mapTaskParallel = new HashMap<String, Integer>();
-		
+
 		localTopologyName = name;
 
 		numBottlenecksToFix = 1;
@@ -97,19 +98,22 @@ public class RoundRobin implements IFeedbackAlgorithm {
 
 		getParallelismHint( topology);
 	}
-	
-	
+
 	public void update(double acksPerSecond, Map<String, ComponentStatistics> statistics) {
 		currThroughput = acksPerSecond;
-		
+
 		if(prepared)
 			runAlgorithm();
 	}
-	
+
 	public void prepare(Map stormConf, TopologyContext context) {
 		_context = context;
 		getComponentsOfTopology();
 		prepared = true;
+	}
+
+	public void onRebalance() {
+		waitingForRebalance = false;
 	}
 
 	public class LastAction {
@@ -134,6 +138,10 @@ public class RoundRobin implements IFeedbackAlgorithm {
 	}
 
 	private void runAlgorithm() {
+		if (waitingForRebalance) {
+			return;
+		}
+
 		numWindowsToPass++;
 
 		if(currThroughput != 0 && numWindowsToPass > 10
@@ -196,6 +204,12 @@ public class RoundRobin implements IFeedbackAlgorithm {
 			componentsQueue.add(component);
 		}
 
+		rebalance();
+	}
+
+	private void rebalance() {
+		waitingForRebalance = true;
+
 		RebalanceOptions options = new RebalanceOptions();
 		options.set_wait_secs(0);
 		options.set_num_executors(mapTaskParallel);
@@ -206,32 +220,31 @@ public class RoundRobin implements IFeedbackAlgorithm {
 			// like I give a fuck
 		}
 	}
-	
+
 	private void getComponentsOfTopology() {
 		for (int i=0; i<_context.getTaskToComponent().size(); i++) {
 			String component = _context.getTaskToComponent().get(i);
 			if (component != null) {
-					if(!component.equals("__acker")) {
+				if (!component.substring(0, 2).equals("__")) {
 					componentsQueue.add(component);
 					mapTaskParallel.put(component, 1);
 				}
 			}
 		}
-	}	
+	}
 
 
 	private void getParallelismHint(StormTopology topology) {
-		Map<String, Bolt> bolts = topology.get_bolts();	
+		Map<String, Bolt> bolts = topology.get_bolts();
 		Map<String, SpoutSpec> spouts = topology.get_spouts();
 
 		for(String i : bolts.keySet()) {
-			mapTaskParallel.put(i, 
+			mapTaskParallel.put(i,
 				bolts.get(i).get_common().get_parallelism_hint());
 		}
 		for(String i : spouts.keySet()) {
-			mapTaskParallel.put(i, 
+			mapTaskParallel.put(i,
 				spouts.get(i).get_common().get_parallelism_hint());
 		}
 	}
 }
-
