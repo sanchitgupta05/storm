@@ -125,7 +125,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			// get the fuck back to the prev config
 			for(String comp : _bufferMapComponentToLastAction.keySet()) {
 				mapTaskParallel.put(comp, 
-						_bufferMapComponentToLastAction.get(comp).oldParallelismHint);
+						_bufferMapComponentToLastAction.get(comp).oldParallelismHint - 1);
 			}
 			_bufferMapComponentToLastAction.clear();
 			numRunAlgorithm = 0;		// cannot run algorithm anymore
