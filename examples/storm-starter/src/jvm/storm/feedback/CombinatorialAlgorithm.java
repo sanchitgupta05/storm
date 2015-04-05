@@ -107,7 +107,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 		}
 
 		if(acksPerSecond < DESIRED_ACKS_PER_SECONDS &&
-				counter >= 10) {		
+				counter >= 20) {		
 			__algorithm(numOfIterations, acksPerSecond, statistics);
 			counter = 0;
 		}	
@@ -123,8 +123,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			if(!_bufferMapComponentToLastAction.isEmpty()) 
 				mapComponentToLastAction.putAll(_bufferMapComponentToLastAction);
 			
-		} else if(!_bufferMapComponentToLastAction.isEmpty() &&
-						!mapComponentToLastAction.isEmpty()) {
+		} else if(!_bufferMapComponentToLastAction.isEmpty()) {
 			// get the fuck back to the prev config
 			for(String comp : _bufferMapComponentToLastAction.keySet()) {
 				mapTaskParallel.put(comp, 
@@ -133,9 +132,8 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			_bufferMapComponentToLastAction.clear();
 			numRunAlgorithm = 0;		// cannot run algorithm anymore
 			reverted = true;
-		} else {
-			return;
-		}
+		} 
+		//else { return;}
 
 		int taskParallel = 0; 
 		double maxCongestion = 0;
