@@ -24,7 +24,8 @@ import java.util.Map;
 import backtype.storm.generated.*;
 
 public interface IFeedbackAlgorithm {
-	void initialize(ILocalCluster cluster, String name);
+    boolean isPrepared();
+	void initialize(ILocalCluster cluster, String name, StormTopology topology);
     void prepare(Map stormConf, TopologyContext context);
 	void update(double acksPerSecond, Map<String, ComponentStatistics> statistics);
 }
