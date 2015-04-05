@@ -17,6 +17,9 @@
  */
 package storm.feedback;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -28,8 +31,11 @@ import backtype.storm.task.TopologyContext;
 import backtype.storm.generated.*;
 
 public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
+	public static final Logger LOG = LoggerFactory.getLogger(BaseFeedbackAlgorithm.class);
+
 	private ILocalCluster localCluster;
 	private String localTopologyName;
+	private StormTopology localTopology;
 	private boolean prepared;
 	private boolean waitingForRebalance;
 	private List<Double> oldThroughputs;
@@ -63,14 +69,15 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	protected boolean throughputIncreased() {
-		return oldThroughputs != null
-			&& significantIncrease(oldThroughputs, newThroughputs);
+		return oldThroughputs == null
+			|| significantIncrease(oldThroughputs, newThroughputs);
 	}
 
 	@Override
 	public void initialize(ILocalCluster cluster, String name, StormTopology topology) {
 		localCluster = cluster;
 		localTopologyName = name;
+		localTopology = topology;
 	}
 
 	public boolean isPrepared() {
@@ -92,6 +99,8 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 
 	public void update(double acksPerSecond, Map<String, ComponentStatistics> statistics) {
 		if (isPrepared() && !waitingForRebalance) {
+			LOG.info("acksPerSecond " + acksPerSecond + " " + System.currentTimeMillis());
+			LOG.info("cpuUsage " + Util.getProcessCpuLoad() + " " + System.currentTimeMillis());
 			newThroughputs.add(acksPerSecond);
 			runAlgorithm(acksPerSecond, statistics);
 		}
@@ -99,6 +108,11 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 
 	protected void rebalance(Map<String, Integer> parallelismHints) {
 		waitingForRebalance = true;
+
+		LOG.info("parallelism rebalance " + System.currentTimeMillis());
+		for (String component : parallelismHints.keySet()) {
+			LOG.info("parallelism " + component + " " + parallelismHints.get(component));
+		}
 
 		RebalanceOptions options = new RebalanceOptions();
 		options.set_wait_secs(0);

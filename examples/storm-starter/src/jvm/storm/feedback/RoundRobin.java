@@ -153,47 +153,42 @@ public class RoundRobin extends BaseFeedbackAlgorithm {
 	Boolean _last_startABolt;
 	boolean reverted;
 
+	private void applyNextAction() {
+		reverted = false;
+
+		String component = componentsQueue.poll();
+		int taskParallelHint = mapTaskParallel.get(component);
+
+		if(taskParallelHint < MAX_PARALLELISM_HINT)  {
+			System.out.println("old parallelism: " + mapTaskParallel);
+			mapTaskParallel.put(component, taskParallelHint + 1);	// updated the new parallelhint for the component in hashmap
+			System.out.println("new parallelism: " + mapTaskParallel);
+			_last_comp = component;
+			_last_parallel = taskParallelHint;
+			_last_acks = currThroughput;
+		}
+		componentsQueue.add(component);
+	}
+
+	private void revertAction() {
+		reverted = true;
+		mapTaskParallel.put(_last_comp, _last_parallel);
+	}
+
 	/* __algorithm() --
 	 * A simple Round Robin algorithm that changes either the # of threads/componenet or
 	 * adds a new parallel bolt to Storm (if possible)i
 	 */
 	private void __algorithm() {
-		Integer taskParallelHint;
-		String component;
-
-		if (_lastAction.oldAcksPerSecond > 0
-			&& !throughputIncreased()
-			&& !reverted) {
-			reverted = true;
-
-			System.out.println("OLD ACTION REVERT");
-			/* revert to last Action */
-			component = _lastAction.component;
-			taskParallelHint = _lastAction.oldParallelismHint;
-			mapTaskParallel.put(component, taskParallelHint);
+		if (reverted) {
+			applyNextAction();
 		} else {
-			reverted = false;
-
-			_lastAction.updateAction(_last_comp, _last_parallel, _last_acks, _last_startABolt);
-
-			component = componentsQueue.poll();
-			taskParallelHint = mapTaskParallel.get(component);
-
-			if(taskParallelHint < MAX_PARALLELISM_HINT)  {
-				System.out.println("old parallelism: " + mapTaskParallel);
-				mapTaskParallel.put(component, ++taskParallelHint);	// updated the new parallelhint for the component in hashmap
-				System.out.println("new parallelism: " + mapTaskParallel);
-				_last_comp = component;
-				_last_parallel = taskParallelHint;
-				_last_acks = currThroughput;
-				 _last_startABolt = false;
+			if (throughputIncreased()) {
+				_lastAction.updateAction(_last_comp, _last_parallel, _last_acks, _last_startABolt);
+				applyNextAction();
 			} else {
-				/* TODO ROHIT: Add a parallel bolt on a new node*/
-
-				/* update the insertion of the newly added bolt to all data structures*/
-				 _last_startABolt = true;
+				revertAction();
 			}
-			componentsQueue.add(component);
 		}
 
 		rebalance(mapTaskParallel);
