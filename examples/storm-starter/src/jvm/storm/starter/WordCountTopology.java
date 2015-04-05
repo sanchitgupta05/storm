@@ -100,7 +100,7 @@ public class WordCountTopology {
 	conf.setNumAckers(3);
 	conf.setMaxTaskParallelism(10);
 	conf.setMaxSpoutPending(64);
-	conf.put(Config.NIMBUS_SUPERVISOR_TIMEOUT_SECS, 10);
+	//conf.put(Config.NIMBUS_SUPERVISOR_TIMEOUT_SECS, 10);
 
     if (args != null && args.length > 0) {
       conf.setNumWorkers(3);
