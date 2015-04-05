@@ -45,8 +45,8 @@ import backtype.storm.utils.NimbusClient;
 
 public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	public static IFeedbackAlgorithm algorithm;
-
 	public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
+
 	private TopologyContext _context;
 
 	/* For each task, keep track of a window of data points */

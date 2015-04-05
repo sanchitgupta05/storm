@@ -63,8 +63,8 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	protected boolean throughputIncreased() {
-		return oldThroughputs != null
-			&& significantIncrease(oldThroughputs, newThroughputs);
+		return oldThroughputs == null
+			|| significantIncrease(oldThroughputs, newThroughputs);
 	}
 
 	@Override
