@@ -62,8 +62,9 @@ public class RoundRobin implements IFeedbackAlgorithm {
 	boolean waitingForRebalance;
 
 	/* A Queue of all the components in the Topology */
-	Queue<String> componentsQueue;
-
+	static Queue<String> componentsQueue;
+	static Queue<String> backupQueue;
+	
 	/* Maps Receive Queue Length to Component*/
 	HashMap<Double, String> mapReceiveQueueLengthToComponents;
 
@@ -87,6 +88,7 @@ public class RoundRobin implements IFeedbackAlgorithm {
 		mapLastAction = new HashMap<String, LastAction>();
 		_lastAction = new LastAction();
 		componentsQueue = new LinkedList<String>();
+		backupQueue = new LinkedList<String>();
 		mapTaskParallel = new HashMap<String, Integer>();
 
 		localTopologyName = name;
@@ -180,26 +182,27 @@ public class RoundRobin implements IFeedbackAlgorithm {
 			/* revert to last Action */
 			component = _lastAction.component;
 			taskParallelHint = _lastAction.oldParallelismHint;
-
+			mapTaskParallel.put(component, taskParallelHint);
+				
 		} else {
 			_lastAction.updateAction(_last_comp, _last_parallel, _last_acks, _last_startABolt);
+			
 			component = componentsQueue.poll();
 			taskParallelHint = mapTaskParallel.get(component);
 
 			if(taskParallelHint < MAX_PARALLELISM_HINT)  {
-				System.out.println("INCREASING parallelism hint");
 				System.out.println("old parallelism: " + mapTaskParallel);
 				mapTaskParallel.put(component, ++taskParallelHint);	// updated the new parallelhint for the component in hashmap
 				System.out.println("new parallelism: " + mapTaskParallel);
 				_last_comp = component;
 				_last_parallel = taskParallelHint;
 				_last_acks = currThroughput;
-				// _last_startABolt = false;
+				 _last_startABolt = false;
 			} else {
 				/* TODO ROHIT: Add a parallel bolt on a new node*/
 
 				/* update the insertion of the newly added bolt to all data structures*/
-				// _last_startABolt = true;
+				 _last_startABolt = true;
 			}
 			componentsQueue.add(component);
 		}
@@ -226,10 +229,13 @@ public class RoundRobin implements IFeedbackAlgorithm {
 			String component = _context.getTaskToComponent().get(i);
 			if (component != null) {
 				if (!component.substring(0, 2).equals("__")) {
-					componentsQueue.add(component);
 					mapTaskParallel.put(component, 1);
 				}
 			}
+		}
+
+		for(String ii : mapTaskParallel.keySet()) {
+			componentsQueue.add(ii);
 		}
 	}
 
