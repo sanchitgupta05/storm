@@ -45,8 +45,8 @@ import backtype.storm.utils.NimbusClient;
 
 public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	public static IFeedbackAlgorithm algorithm;
-
 	public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
+
 	private TopologyContext _context;
 
 	/* For each task, keep track of a window of data points */
@@ -67,12 +67,15 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	 @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		_context = context;
-		
-		if (algorithm != null && 
-			!algorithm.isPrepared()) {
-			algorithm.prepare();
+
+		if (algorithm != null) {
+			if (algorithm.isPrepared()) {
+				algorithm.onRebalance();
+			} else {
+				algorithm.prepare(stormConf, context);
+			}
 		}
-		
+
 		windowSize = 5;
 
 		// set up data collection
@@ -86,34 +89,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				counter.put(i, 0);
 			}
 		}
-
-	}
-
-	private double mean(List<Double> a) {
-		double sum = 0;
-		for (Double val : a) {
-			sum += val;
-		}
-		return sum / a.size();
-	}
-
-	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > 0.95
-	public boolean significantIncrease(List<Double> a, List<Double> b) {
-		double meanA = mean(a);
-		double sd = 0;
-		for (Double val : a) {
-			sd += (val - meanA) * (val - meanA);
-		}
-		sd = Math.sqrt(sd / (a.size() - 1));
-
-		double meanB = mean(b);
-		NormalDistribution dist = new NormalDistribution(meanA, sd);
-		double p = dist.cumulativeProbability(meanB);
-
-		boolean significant = (p > 0.95);
-		System.out.println("p-value=" + p + ", " +
-						   (significant ? "increase" : "no increase"));
-		return significant;
 	}
 
 	// Aggregate the collected data points into component-specific metrics

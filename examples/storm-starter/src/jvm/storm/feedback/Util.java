@@ -17,20 +17,26 @@
  */
 package storm.feedback;
 
-import backtype.storm.ILocalCluster;
+import javax.management.*;
+import java.lang.management.*;
 
-import java.util.Map;
+public class Util {
+	public static double getProcessCpuLoad() {
+		try {
+			MBeanServer mbs    = ManagementFactory.getPlatformMBeanServer();
+      ObjectName name    = ObjectName.getInstance("java.lang:type=OperatingSystem");
+      AttributeList list = mbs.getAttributes(name, new String[]{ "ProcessCpuLoad" });
 
-import backtype.storm.generated.*;
-import backtype.storm.task.TopologyContext;
-import java.util.Map;
+      if (list.isEmpty())   return Double.NaN;
 
-public interface IFeedbackAlgorithm {
-	void initialize(ILocalCluster cluster, String name, StormTopology topology);
+      Attribute att = (Attribute)list.get(0);
+      Double value  = (Double)att.getValue();
 
-	boolean isPrepared();
-	void prepare(Map stormConf, TopologyContext context);
-	void onRebalance();
+      if (value == -1.0)    return Double.NaN;  // usually takes a couple of seconds before we get real values
 
-	void update(double acksPerSecond, Map<String, ComponentStatistics> statistics);
+      return ((int)(value * 1000) / 10.0);    // returns a percentage value with 1 decimal point precision
+    } catch (Exception e) {
+      return -1;
+    }
+  }
 }
