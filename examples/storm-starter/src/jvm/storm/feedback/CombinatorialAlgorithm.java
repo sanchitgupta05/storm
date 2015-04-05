@@ -65,6 +65,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 	private HashMap<Double, String> mapCongestionToComponent;
 
 	private int counter;
+	private boolean reverted;
 
 	@Override
 	public void initialize(ILocalCluster cluster, String name, StormTopology topology) {
@@ -115,13 +116,15 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 	private void __algorithm(int numRunAlgorithm, double acksPerSecond, Map<String, 
 									ComponentStatistics> statistics) {
 
-		if(throughputIncreased() == true) {
+		if(throughputIncreased() || reverted) {
 			// can safely append the buffered lastAction
+			reverted = false;
 			mapComponentToLastAction.clear();
 			if(!_bufferMapComponentToLastAction.isEmpty()) 
 				mapComponentToLastAction.putAll(_bufferMapComponentToLastAction);
-
-		} else if(!_bufferMapComponentToLastAction.isEmpty()) {
+			
+		} else if(!_bufferMapComponentToLastAction.isEmpty() &&
+						!mapComponentToLastAction.isEmpty()) {
 			// get the fuck back to the prev config
 			for(String comp : _bufferMapComponentToLastAction.keySet()) {
 				mapTaskParallel.put(comp, 
@@ -129,6 +132,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			}
 			_bufferMapComponentToLastAction.clear();
 			numRunAlgorithm = 0;		// cannot run algorithm anymore
+			reverted = true;
 		} else {
 			return;
 		}
@@ -209,5 +213,4 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 	}
 
 }
-
 
