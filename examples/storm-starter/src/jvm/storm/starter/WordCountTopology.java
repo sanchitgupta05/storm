@@ -96,11 +96,11 @@ public class WordCountTopology {
     // conf.setDebug(true);
 	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
+   conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
 	conf.setNumAckers(3);
 	conf.setMaxTaskParallelism(10);
 	conf.setMaxSpoutPending(64);
-	//conf.put(Config.NIMBUS_SUPERVISOR_TIMEOUT_SECS, 10);
+	conf.put(Config.NIMBUS_SUPERVISOR_TIMEOUT_SECS, 100);
 
     if (args != null && args.length > 0) {
       conf.setNumWorkers(3);
@@ -121,9 +121,10 @@ public class WordCountTopology {
 
       cluster.submitTopology(topologyName, conf, topology);
 
-      Thread.sleep(20 * 60 * 1000);
-
-      cluster.shutdown();
+		while(1<2)
+			Thread.sleep(10 * 20 * 60 * 1000);
+		
+      //cluster.shutdown();
     }
   }
 }
