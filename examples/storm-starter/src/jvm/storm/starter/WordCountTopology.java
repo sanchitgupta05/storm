@@ -79,19 +79,22 @@ public class WordCountTopology {
 
     TopologyBuilder builder = new TopologyBuilder();
 
+	int numTasks = 5;
+
 	// 5, 8, 12
-    builder.setSpout("spout", new RandomSentenceSpout(), 1);
-    builder.setBolt("split", new SplitSentence(), 1).shuffleGrouping("spout");
-    builder.setBolt("count", new WordCount(), 3).fieldsGrouping("split", new Fields("word"));
-    builder.setBolt("split2", new SplitSentence(), 1).shuffleGrouping("spout");
-    builder.setBolt("count2", new WordCount(), 2).fieldsGrouping("split2", new Fields("word"));
+    builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
+    builder.setBolt("split", new SplitSentence(), 1).setNumTasks(numTasks).shuffleGrouping("spout");
+    builder.setBolt("count", new WordCount(), 1).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
+    // builder.setBolt("split2", new SplitSentence(), 1).shuffleGrouping("spout");
+    // builder.setBolt("count2", new WordCount(), 2).fieldsGrouping("split2", new Fields("word"));
 
     Config conf = new Config();
     // conf.setDebug(true);
 	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 2);
+    conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
 	conf.setNumAckers(3);
+	conf.setMaxTaskParallelism(10);
 	conf.setMaxSpoutPending(64);
 
     if (args != null && args.length > 0) {
@@ -102,11 +105,14 @@ public class WordCountTopology {
     else {
       conf.setMaxTaskParallelism(10);
 
+	  String topologyName = "word-count";
+
       LocalCluster cluster = new LocalCluster();
 	  FeedbackMetricsConsumer.localCluster = cluster;
-      cluster.submitTopology("word-count", conf, builder.createTopology());
+	  FeedbackMetricsConsumer.localTopologyName = topologyName;
+      cluster.submitTopology(topologyName, conf, builder.createTopology());
 
-      Thread.sleep(2 * 60 * 1000);
+      Thread.sleep(5 * 60 * 1000);
 
       cluster.shutdown();
     }
