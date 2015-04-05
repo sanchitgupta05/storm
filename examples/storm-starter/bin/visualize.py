@@ -1,27 +1,29 @@
+#!/usr/bin/env python
+
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from prettytable import PrettyTable
 
-def main(keyword):
+def main(lines, keyword):
     # acks_to_time = dict()
     acks_second = []
     acks_second_time = []
-    ack_lines = [line for line in open('word_count_12-51.log', 'r') if keyword in line]
+    ack_lines = [line for line in lines if keyword in line]
     for line in ack_lines:
         line = line[line.index(keyword):]
         words = line.split()
         acks_second.append(words[1])
         acks_second_time.append(words[2])
-    print(acks_second)
-    print(acks_second_time)
-    # print("avg:" + str(sum(float(x) for x in acks_second)/len(acks_second)))
-    # plt.plot(acks_second_time, acks_second, linestyle='-')
-    # plt.title(keyword)
-    # plt.show()
-    # plt.figure()
+    # print(acks_second)
+    # print(acks_second_time)
+    print("avg:" + str(sum(float(x) for x in acks_second)/len(acks_second)))
+    plt.plot(acks_second_time, acks_second, linestyle='-')
+    plt.title(keyword)
+    plt.show()
+    plt.figure()
 
-
-def parallellism_stuff(keyword):
+def parallellism_stuff(lines, keyword):
     header_list = []
     table_data = []
     table_data_temp = []
@@ -29,7 +31,7 @@ def parallellism_stuff(keyword):
     acks_second = []
     acks_second_avg = []
     # ack_lines = [line for line in open('word_count_12-51.log', 'r') if keyword in line]
-    for line in open('word_count_12-51.log','r'):
+    for line in lines:
         if keyword in line:
             line = line[line.index(keyword):]
             words = line.split()
@@ -42,6 +44,13 @@ def parallellism_stuff(keyword):
             line = line[line.index("acksPerSecond"):]
             words = line.split()
             acks_second.append(words[1])
+
+    # calculate average for last entry
+    if acks_second:
+        acks_second_avg.append(sum(float(x) for x in acks_second)/len(acks_second))
+    else:
+        acks_second_avg.append("N/A")
+
     header_set = list(set(header_list))
     count = 0
     for elem in header_list:
@@ -54,7 +63,7 @@ def parallellism_stuff(keyword):
     header_list.append("acks_second_avg")
     table = PrettyTable(header_list)
     i = 0
-    avg_count = 1
+    avg_count = 0
     for elem in table_data_temp:
         temp_2.append(elem)
         i += 1
@@ -72,6 +81,15 @@ def parallellism_stuff(keyword):
     # plt.show()
 
 if __name__ == "__main__":
-    main("acksPerSecond")
-    main("cpuUsage")
-    parallellism_stuff("parallelism")
+    if len(sys.argv) != 2:
+        print "Usage: %s logfile" % sys.argv[0]
+        sys.exit(1)
+
+    f = open(sys.argv[1], 'r')
+    lines = f.readlines()
+    lines = [line for line in lines
+             if "storm.feedback.BaseFeedbackAlgorithm" in line]
+
+    main(lines, "acksPerSecond")
+    main(lines, "cpuUsage")
+    parallellism_stuff(lines, "parallelism")
