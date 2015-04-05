@@ -33,6 +33,7 @@ import backtype.storm.tuple.Values;
 import storm.starter.spout.RandomSentenceSpout;
 import storm.feedback.FeedbackMetricsConsumer;
 import storm.feedback.RoundRobin;
+import storm.feedback.CombinatorialAlgorithm;
 
 import backtype.storm.generated.StormTopology;
 
@@ -113,7 +114,8 @@ public class WordCountTopology {
 	  String topologyName = "word-count";
 	  StormTopology topology = builder.createTopology();
 
-	  RoundRobin algorithm = new RoundRobin();
+	  //RoundRobin algorithm = new RoundRobin();
+	  CombinatorialAlgorithm algorithm = new CombinatorialAlgorithm();
 	  algorithm.initialize(cluster, topologyName, topology);
 	  FeedbackMetricsConsumer.algorithm = algorithm;
 
