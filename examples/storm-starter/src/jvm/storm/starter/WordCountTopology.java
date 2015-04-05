@@ -122,7 +122,7 @@ public class WordCountTopology {
 
       cluster.submitTopology(topologyName, conf, topology);
 
-      Thread.sleep(20 * 60 * 1000);
+      Thread.sleep(30 * 60 * 1000);
 
       cluster.shutdown();
     }

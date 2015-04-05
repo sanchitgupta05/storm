@@ -127,13 +127,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 
 		RebalanceOptions options = new RebalanceOptions();
-		options.set_wait_secs(0);
+		// options.set_wait_secs(15);
 		options.set_num_executors(parallelismHints);
 		try {
 			localCluster.rebalance(localTopologyName, options);
 			System.out.println("REBALANCING: " + parallelismHints);
 		} catch (Exception e) {
-			// like I give a fuck
+			System.out.println("EXCEPTION DETECTED!!!!!" + e.toString());
 		}
 	}
 
