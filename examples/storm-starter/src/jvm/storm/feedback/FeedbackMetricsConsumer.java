@@ -89,34 +89,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				counter.put(i, 0);
 			}
 		}
-
-	}
-
-	private double mean(List<Double> a) {
-		double sum = 0;
-		for (Double val : a) {
-			sum += val;
-		}
-		return sum / a.size();
-	}
-
-	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > 0.95
-	public boolean significantIncrease(List<Double> a, List<Double> b) {
-		double meanA = mean(a);
-		double sd = 0;
-		for (Double val : a) {
-			sd += (val - meanA) * (val - meanA);
-		}
-		sd = Math.sqrt(sd / (a.size() - 1));
-
-		double meanB = mean(b);
-		NormalDistribution dist = new NormalDistribution(meanA, sd);
-		double p = dist.cumulativeProbability(meanB);
-
-		boolean significant = (p > 0.95);
-		System.out.println("p-value=" + p + ", " +
-						   (significant ? "increase" : "no increase"));
-		return significant;
 	}
 
 	// Aggregate the collected data points into component-specific metrics
