@@ -72,8 +72,8 @@ public class RoundRobin extends BaseFeedbackAlgorithm {
 	/* For each Component, keep track of the lastAction taken by the algorithm*/
 	HashMap<String, LastAction> mapLastAction;
 
-	@Override
-	public void initialize(ILocalCluster cluster, String name, StormTopology topology) {
+	@override
+	public void initialize(ilocalcluster cluster, string name, stormtopology topology) {
 		super.initialize(cluster, name, topology);
 
 		localCluster = cluster;
