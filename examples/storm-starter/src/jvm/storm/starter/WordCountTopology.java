@@ -31,7 +31,9 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 import storm.starter.spout.RandomSentenceSpout;
+
 import storm.feedback.FeedbackMetricsConsumer;
+import storm.feedback.IFeedbackAlgorithm;
 import storm.feedback.RoundRobin;
 import storm.feedback.CombinatorialAlgorithm;
 import storm.feedback.CombinatorialAlgorithm2;
@@ -81,23 +83,37 @@ public class WordCountTopology {
   }
 
   public static void main(String[] args) throws Exception {
+	IFeedbackAlgorithm algorithm = null;
+	String arg = System.getProperty("feedback.algorithm", null);
+	if (arg == null) {
+	  System.out.println("No Algorithm Given");
+	  System.exit(1);
+	}
+
+
+	if (arg.equals("1")) {
+	  algorithm = new RoundRobin();
+	} else if (arg.equals("2")) {
+	  algorithm = new CombinatorialAlgorithm();
+	} else if (arg.equals("3")) {
+	  algorithm = new CombinatorialAlgorithm2();
+	} else {
+	  System.out.println("Invalid Algorithm: " + arg);
+	  System.exit(1);
+	}
 
     TopologyBuilder builder = new TopologyBuilder();
-
 	int numTasks = 5;
 
-	// 5, 8, 12
     builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
     builder.setBolt("split", new SplitSentence(), 1).setNumTasks(numTasks).shuffleGrouping("spout");
     builder.setBolt("count", new WordCount(), 1).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
-    // builder.setBolt("split2", new SplitSentence(), 1).shuffleGrouping("spout");
-    // builder.setBolt("count2", new WordCount(), 2).fieldsGrouping("split2", new Fields("word"));
 
     Config conf = new Config();
     // conf.setDebug(true);
 	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-   conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
+	conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
 	conf.setNumAckers(3);
 	conf.setMaxTaskParallelism(10);
 	conf.setMaxSpoutPending(64);
@@ -115,9 +131,7 @@ public class WordCountTopology {
 	  String topologyName = "word-count";
 	  StormTopology topology = builder.createTopology();
 
-	  // RoundRobin algorithm = new RoundRobin();
-	  //CombinatorialAlgorithm algorithm = new CombinatorialAlgorithm();
-	  CombinatorialAlgorithm2 algorithm = new CombinatorialAlgorithm2();
+
 	  algorithm.initialize(cluster, topologyName, topology);
 	  FeedbackMetricsConsumer.algorithm = algorithm;
 

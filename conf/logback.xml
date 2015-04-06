@@ -25,4 +25,7 @@
   <root level="INFO">
     <appender-ref ref="A1"/>
   </root>
+  <!-- <root level="DEBUG"> -->
+  <!--   <appender-ref ref="A1"/> -->
+  <!-- </root> -->
 </configuration>

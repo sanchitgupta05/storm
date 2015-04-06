@@ -257,13 +257,17 @@
         thread-pid (@(:worker-thread-pids-atom supervisor) id)
         as-user (conf SUPERVISOR-RUN-WORKER-AS-USER)
         user (get-worker-user conf id)]
+    (log-message "shut down params: "
+                 (clojure.string/join "," [conf, pids, thread-pid, as-user, user]))
     (when thread-pid
       (psim/kill-process thread-pid))
+    (log-message "here 1")
     (doseq [pid pids]
       (if as-user
         (worker-launcher-and-wait conf user ["signal" pid "9"] :log-prefix (str "kill -15 " pid))
         (kill-process-with-sig-term pid)))
     (if-not (empty? pids) (sleep-secs 1)) ;; allow 1 second for execution of cleanup threads on worker.
+    (log-message "here 2")
     (doseq [pid pids]
       (if as-user
         (worker-launcher-and-wait conf user ["signal" pid "9"] :log-prefix (str "kill -9 " pid))
@@ -273,7 +277,9 @@
         (try
           (rmpath (worker-pid-path conf id pid))
           (catch Exception e)))) ;; on windows, the supervisor may still holds the lock on the worker directory
+    (log-message "here 3")
     (try-cleanup-worker conf id user))
+  (log-message "here 4")
   (log-message "Shut down " (:supervisor-id supervisor) ":" id))
 
 (def SUPERVISOR-ZK-ACLS
