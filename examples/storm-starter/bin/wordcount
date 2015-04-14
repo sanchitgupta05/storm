@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ "$#" -ne "1" ]; then
+	echo "Usage: $0 [1|2|3]"
+	exit 1
+fi
+
+mvn compile exec:java -Dstorm.topology=storm.starter.WordCountTopology -Dfeedback.algorithm=$1

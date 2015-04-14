@@ -64,7 +64,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 	/* Maps congestion to the component */
 	private HashMap<Double, String> mapCongestionToComponent;
 
-	private int counter;
+	private static int counter;
 	private boolean reverted;
 
 	@Override
@@ -99,17 +99,23 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 		
 		counter++;
 
-		int numOfIterations = (int)Math.ceil(++numIterationOfAlgorithm/(double)mapTaskParallel.size());
 		
-		if(numOfIterations > mapTaskParallel.size()) {
-			numOfIterations = 1;
-			numIterationOfAlgorithm = 0;
-		}
+		
 
 		if(acksPerSecond < DESIRED_ACKS_PER_SECONDS &&
-				counter >= 10) {		
+				counter >= 15) {		
+			counter = 0;	
+			
+			int numOfIterations = (int)Math.ceil(++numIterationOfAlgorithm/(double)(mapTaskParallel.size()-1));
+			
+			if(numOfIterations > mapTaskParallel.size()) {
+				numOfIterations = 1;
+				numIterationOfAlgorithm = 0;
+			}
+			
 			__algorithm(numOfIterations, acksPerSecond, statistics);
-			counter = 0;
+			
+			System.out.println("ALGORITHM RAN ! NUM OF ITERATIONS: " + numOfIterations + "\n");
 		}	
 	}
 
@@ -117,14 +123,12 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 									ComponentStatistics> statistics) {
 
 		if(throughputIncreased() || reverted) {
-			// can safely append the buffered lastAction
 			reverted = false;
 			mapComponentToLastAction.clear();
 			if(!_bufferMapComponentToLastAction.isEmpty()) 
 				mapComponentToLastAction.putAll(_bufferMapComponentToLastAction);
 			
 		} else if(!_bufferMapComponentToLastAction.isEmpty()) {
-			// get the fuck back to the prev config
 			for(String comp : _bufferMapComponentToLastAction.keySet()) {
 				mapTaskParallel.put(comp, 
 						_bufferMapComponentToLastAction.get(comp).oldParallelismHint - 1);
@@ -132,9 +136,8 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			_bufferMapComponentToLastAction.clear();
 			numRunAlgorithm = 0;		// cannot run algorithm anymore
 			reverted = true;
-		} else {
-			return;
-		}
+		} 
+		//else { return;}
 
 		int taskParallel = 0; 
 		double maxCongestion = 0;
@@ -142,9 +145,14 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 		
 		/* get the mapping from Queue length to Component */
 		for(String kk : statistics.keySet()) {
-			mapCongestionToComponent.put((double)(statistics.get(kk).receiveQueueLength
+			if (!kk.substring(0, 2).equals("__")) {
+				mapCongestionToComponent.put((double)(statistics.get(kk).receiveQueueLength
 													+Math.random()), kk);
+		
+			}
 		}
+
+		System.out.println("CONGESTION TO COMPONENT: " + mapCongestionToComponent + "\n");
 
 		for(int i = numRunAlgorithm; i > 0; i--) {
 			for(double k : mapCongestionToComponent.keySet()) {
@@ -153,8 +161,15 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 				}
 			}
 			component = mapCongestionToComponent.remove(maxCongestion);
-			taskParallel =  mapTaskParallel.get(component);
+			maxCongestion = 0;
+			System.out.println(" OLD MAPTASKPARALLEL: " + mapTaskParallel + "\n" + "COMPONENT :" + component + "\n");
+			try {
+				taskParallel =  mapTaskParallel.get(component);
+			} catch(NullPointerException e) {
+				continue;
+			}
 			mapTaskParallel.put(component, taskParallel+1);
+			System.out.println(" NEW MAPTASKPARALLEL: " + mapTaskParallel + "\n");
 			
 			// create a buffer last action for this
 			LastAction _lastAction = new LastAction();

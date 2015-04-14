@@ -78,6 +78,18 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		localCluster = cluster;
 		localTopologyName = name;
 		localTopology = topology;
+
+		LOG.info("parallelism rebalance " + System.currentTimeMillis());
+		Map<String, Bolt> bolts = topology.get_bolts();
+		for(String i : bolts.keySet()) {
+			int p = bolts.get(i).get_common().get_parallelism_hint();
+			LOG.info("parallelism " + i + " " + p);
+		}
+		Map<String, SpoutSpec> spouts = topology.get_spouts();
+		for(String i : spouts.keySet()) {
+			int p = spouts.get(i).get_common().get_parallelism_hint();
+			LOG.info("parallelism " + i + " " + p);
+		}
 	}
 
 	public boolean isPrepared() {
@@ -115,13 +127,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 
 		RebalanceOptions options = new RebalanceOptions();
-		options.set_wait_secs(0);
+		// options.set_wait_secs(15);
 		options.set_num_executors(parallelismHints);
 		try {
 			localCluster.rebalance(localTopologyName, options);
 			System.out.println("REBALANCING: " + parallelismHints);
 		} catch (Exception e) {
-			// like I give a fuck
+			System.out.println("EXCEPTION DETECTED!!!!!" + e.toString());
 		}
 	}
 
