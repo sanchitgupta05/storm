@@ -123,8 +123,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			if(!_bufferMapComponentToLastAction.isEmpty()) 
 				mapComponentToLastAction.putAll(_bufferMapComponentToLastAction);
 			
-		} else if(!_bufferMapComponentToLastAction.isEmpty() &&
-						!mapComponentToLastAction.isEmpty()) {
+		} else if(!_bufferMapComponentToLastAction.isEmpty()) {
 			// get the fuck back to the prev config
 			for(String comp : _bufferMapComponentToLastAction.keySet()) {
 				mapTaskParallel.put(comp, 
