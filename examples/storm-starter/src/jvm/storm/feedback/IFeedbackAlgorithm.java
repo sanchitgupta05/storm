@@ -29,12 +29,4 @@ public interface IFeedbackAlgorithm {
 	void initialize(String topologyName, Map stormConf,
 					TopologyContext context, Map<String, Integer> parallelism);
 	void update(double throughput, Map<String, ComponentStatistics> statistics);
-
-	// void initialize(ILocalCluster cluster, String name, StormTopology topology);
-
-	// boolean isPrepared();
-	// void prepare(Map stormConf, TopologyContext context);
-	// void onRebalance();
-
-	// void update(double acksPerSecond, Map<String, ComponentStatistics> statistics);
 }

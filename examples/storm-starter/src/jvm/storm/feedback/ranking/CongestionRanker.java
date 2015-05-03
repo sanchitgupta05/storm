@@ -47,8 +47,12 @@ public class CongestionRanker implements IRanker {
 					maxComponent = component;
 				}
 			}
-			components.remove(maxComponent);
-			result.add(maxComponent);
+			if (maxComponent != null) {
+				components.remove(maxComponent);
+				result.add(maxComponent);
+			} else {
+				break;
+			}
 		}
 		return result;
 	}
