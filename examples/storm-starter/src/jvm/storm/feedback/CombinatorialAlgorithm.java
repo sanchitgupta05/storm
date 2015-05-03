@@ -62,7 +62,7 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 			parallelism);
 
 		// truncate list to reduce possible combinations
-		int k = 3;
+		int k = Math.min(3, ranking.size());
 		if (ranking.size() > k)
 			ranking = ranking.subList(0, k);
 

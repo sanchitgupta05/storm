@@ -66,27 +66,23 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	private String topologyName;
 	private Map<String, Integer> startingParallelism;
 
-	private boolean waitingForRebalance;
 	private List<Double> newThroughputs;
+	private int updateCounter;
 
 	@Override
 	public void initialize(String topologyName, Map stormConf,
-						   TopologyContext topologyContext, Map<String, Integer> startingParallelism) {
+						   TopologyContext topologyContext,
+						   Map<String, Integer> startingParallelism) {
 		this.topologyName = topologyName;
 		this.stormConf = stormConf;
 		this.topologyContext = topologyContext;
 		this.startingParallelism = startingParallelism;
 
-		waitingForRebalance = false;
 		newThroughputs = new ArrayList<Double>();
-
-		// connect to Nimbus
-		if (localCluster == null) {
-			// Create nimbus client, etc.
-		}
+		updateCounter = 0;
 
 		// load previous data from zookeeper
-		basePath = "/feedback/" + topologyName;
+		basePath = "/feedback/" + topologyContext.getStormId();
 		zookeeper = Utils.newCurator(
 			stormConf,
 			(List<String>)stormConf.get(Config.STORM_ZOOKEEPER_SERVERS),
@@ -101,6 +97,8 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			parallelism = startingParallelism;
 		}
 
+
+		LOG.info("zookeeper path: " + basePath);
 		LOG.info("parallelism rebalance " + System.currentTimeMillis());
 		for (String c : parallelism.keySet()) {
 			LOG.info("parallelism " + c + " " + parallelism.get(c));
@@ -197,8 +195,8 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		return sum / a.size();
 	}
 
-	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > 0.95
-	private boolean significantIncrease(List<Double> a, List<Double> b) {
+	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > pvalue
+	private boolean significantIncrease(List<Double> a, List<Double> b, double pvalue) {
 		double meanA = mean(a);
 		double sd = 0;
 		for (Double val : a) {
@@ -210,7 +208,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		NormalDistribution dist = new NormalDistribution(meanA, sd);
 		double p = dist.cumulativeProbability(meanB);
 
-		boolean significant = (p > 0.95);
+		boolean significant = (p > pvalue);
 		System.out.println("p-value=" + p + ", " +
 						   (significant ? "increase" : "no increase"));
 		return significant;
@@ -218,29 +216,60 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 
 	protected boolean throughputIncreased() {
 		return oldThroughputs == null
-			|| significantIncrease(oldThroughputs, newThroughputs);
+			|| significantIncrease(oldThroughputs, newThroughputs, 0.90);
 	}
 
-	public void update(double acksPerSecond, Map<String, ComponentStatistics> statistics) {
-		newThroughputs.add(acksPerSecond);
+	public void update(double throughput, Map<String, ComponentStatistics> statistics) {
+		String status = topologyStatus();
+		LOG.info("Throughput: " + throughput);
+		LOG.info("Topology Status: " + status);
 
-		if (newThroughputs.size() > 10
-			&& !waitingForRebalance) {
+		// wait sufficiently after rebalancing to run the algorithm again
+		if (status.equals("REBALANCING")) {
+			updateCounter = -5;
+		}
 
-			boolean reverted = (history != null && oldParallelism == null);
-			if (reverted) {
-				applyNextAction(statistics);
-			} else {
-				if (throughputIncreased()) {
-					// successfully applied action, clear the history
-					history = null;
+		LOG.info("updateCounter = " + updateCounter);
+
+		if (updateCounter > 15) {
+			newThroughputs.add(throughput);
+		}
+		updateCounter++;
+
+		int n = newThroughputs.size();
+		if (n > 10) {
+			boolean stable = !significantIncrease(
+				newThroughputs.subList(n-10, n-5),
+				newThroughputs.subList(n-5, n),
+				0.6);
+
+			LOG.info("Throughputs! " + newThroughputs);
+			LOG.info("stable = " + stable);
+
+			if (stable) {
+				// truncate the newThroughputs
+				newThroughputs = new ArrayList<Double>(newThroughputs.subList(n-10, n));
+
+				LOG.info("Final Throughputs: " + newThroughputs);
+				printStatistics(statistics);
+
+				boolean reverted = (history != null && oldParallelism == null);
+				if (reverted) {
+					// last action failed, try another
 					applyNextAction(statistics);
 				} else {
-					revertAction();
+					if (throughputIncreased()) {
+						// successfully applied action, clear the history
+						history = null;
+						applyNextAction(statistics);
+					} else {
+						revertAction();
+					}
 				}
-			}
 
-			waitingForRebalance = true;
+				newThroughputs = new ArrayList<Double>();
+				updateCounter = 0;
+			}
 		}
 	}
 
@@ -279,6 +308,46 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		oldThroughputs = null;
 		save();
 		rebalance();
+	}
+
+	public void printStatistics(Map<String, ComponentStatistics> statistics) {
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			if (stats.isSpout()) {
+				System.out.println(component + ".completeLatency = " + stats.completeLatency() + " ms");
+			}
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".send = " + stats.sendLatency() + " ms");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".execute = " + stats.executeLatency() + " ms");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".receive = " + stats.receiveLatency() + " ms");
+		}
+	}
+
+	protected String topologyStatus() {
+		try {
+			if (localCluster != null) {
+				return null;
+				// return (String)localCluster.getState().get(topologyName);
+			} else {
+				NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
+				return client.getClient().getTopologyInfo(
+					topologyContext.getStormId()).get_status();
+			}
+		} catch (Exception e) {
+			System.out.println("topologyStatus() exception: " + e);
+			return null;
+		}
 	}
 
 	protected void rebalance() {

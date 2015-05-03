@@ -57,10 +57,8 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	/* How many times a task has sent metrics */
 	private Map<Integer, Integer> counter;
 
-	/* How many samples to keep in the window */
 	private int windowSize;
-
-	// The algorithm!
+	private int lastMinCounter;
 	private IFeedbackAlgorithm algorithm;
 
 	private boolean isMetricComponent(String component) {
@@ -75,6 +73,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		algorithm = createAlgorithm(stormConf, context, registrationArgument);
 
 		windowSize = 5;
+		lastMinCounter = 0;
 
 		// set up data collection
 		dpwindow = new HashMap<Integer, DataPointWindow>();
@@ -118,35 +117,29 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		return totalAcks;
 	}
 
-	public void printStatistics(Map<String, ComponentStatistics> statistics) {
-		System.out.println("FEEDBACK acks/second: " + getTotalAcks(statistics) / windowSize);
-
-		for (String component : statistics.keySet()) {
-			ComponentStatistics stats = statistics.get(component);
-			if (stats.isSpout()) {
-				System.out.println(component + ".completeLatency = " + stats.completeLatency() + " ms");
+	private int componentCounter(String component) {
+		int max = 0;
+		Map<Integer, String> taskToComponent = _context.getTaskToComponent();
+		for (Integer task : taskToComponent.keySet()) {
+			if (taskToComponent.get(task) == component) {
+				int count = counter.get(task);
+				if (count > max) {
+					max = count;
+				}
 			}
 		}
+		return max;
+	}
 
-		for (String component : statistics.keySet()) {
-			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".send = " + stats.sendLatency() + " ms");
+	private int minComponentCounter() {
+		int minCount = -1;
+		for (String component : _context.getComponentIds()) {
+			int count = componentCounter(component);
+			if (minCount < 0 || count < minCount) {
+				minCount = count;
+			}
 		}
-
-		for (String component : statistics.keySet()) {
-			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".execute = " + stats.executeLatency() + " ms");
-		}
-
-		for (String component : statistics.keySet()) {
-			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".receive = " + stats.receiveLatency() + " ms");
-		}
-
-		for (String component : statistics.keySet()) {
-			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".executeCount = " + stats.executeCount / windowSize);
-		}
+		return minCount;
 	}
 
     @Override
@@ -159,19 +152,18 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		for (DataPoint p : dataPoints) {
 			dp.put(p.name, p.value);
 		}
-		Map<String, ComponentStatistics> stats;
-		// Every so often, report the statistics & run the algorithm
-		if (taskId == -1 && count > windowSize) {
-			stats = collectStatistics();
-			printStatistics(stats);
+
+		// When the min counter increases, report new statistics
+		int minCounter = minComponentCounter();
+		if (minCounter > lastMinCounter && minCounter > windowSize) {
+			lastMinCounter = minCounter;
+			Map<String, ComponentStatistics> stats = collectStatistics();
 			algorithm.update(getTotalAcks(stats)/windowSize, stats);
 		}
 
 		// Update the window
 		if (taskId >= 0) {
 			dpwindow.get(taskId).putDataPoints(count, dp);
-			// System.out.println(taskId + ":" + taskInfo.srcComponentId);
-			// System.out.println(dp);
 		}
     }
 

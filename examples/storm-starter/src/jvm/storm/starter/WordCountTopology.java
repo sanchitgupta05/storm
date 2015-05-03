@@ -128,19 +128,18 @@ public class WordCountTopology {
 	builder.addBolt(AutoBolt.create("c", 150, 10)
 					.addParent("a"), 1);
 	builder.addBolt(AutoBolt.create("d", 150, 10)
-					.addParent("c"), 2);
-
+					.addParent("c"), 1);
 
     Config conf = new Config();
 	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
 	conf.setNumAckers(1);
 	conf.setMaxTaskParallelism(10);
-	conf.setMaxSpoutPending(1);
+	conf.setMaxSpoutPending(8);
 
 	StormTopology topology = builder.createTopology();
     if (args != null && args.length > 0) {
-	  conf.setNumWorkers(2);
+	  conf.setNumWorkers(4);
 
 	  String topologyName = args[0];
 	  FeedbackMetricsConsumer.register(conf, topologyName, topology);
