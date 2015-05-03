@@ -208,7 +208,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 		// TODO: select algorithm based on stormConf
 		// IFeedbackAlgorithm algorithm = new RoundRobin();
-		IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm3(new CongestionRanker());
+		IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
 		algorithm.initialize(name, stormConf, context, parallelism);
 		return algorithm;
 	}

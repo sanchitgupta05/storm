@@ -40,7 +40,6 @@ import storm.feedback.FeedbackMetricsConsumer;
 import storm.feedback.IFeedbackAlgorithm;
 import storm.feedback.RoundRobin;
 import storm.feedback.CombinatorialAlgorithm;
-import storm.feedback.CombinatorialAlgorithm2;
 
 import backtype.storm.generated.StormTopology;
 
