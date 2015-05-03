@@ -98,10 +98,6 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 	protected void runAlgorithm(double acksPerSecond, Map<String, ComponentStatistics> statistics) {
 		
 		counter++;
-
-		
-		
-
 		if(acksPerSecond < DESIRED_ACKS_PER_SECONDS &&
 				counter >= 15) {		
 			counter = 0;	
