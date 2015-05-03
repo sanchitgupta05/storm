@@ -15,26 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package storm.feedback;
-
-import backtype.storm.ILocalCluster;
+package storm.feedback.ranking;
 
 import java.util.Map;
+import java.util.List;
 
-import backtype.storm.generated.*;
 import backtype.storm.task.TopologyContext;
-import java.util.Map;
 
-public interface IFeedbackAlgorithm {
-	void initialize(String topologyName, Map stormConf,
-					TopologyContext context, Map<String, Integer> parallelism);
-	void update(double throughput, Map<String, ComponentStatistics> statistics);
+import storm.feedback.ComponentStatistics;
 
-	// void initialize(ILocalCluster cluster, String name, StormTopology topology);
-
-	// boolean isPrepared();
-	// void prepare(Map stormConf, TopologyContext context);
-	// void onRebalance();
-
-	// void update(double acksPerSecond, Map<String, ComponentStatistics> statistics);
+public interface IRanker {
+	public List<String> rankComponents(TopologyContext context,
+									   Map<String, ComponentStatistics> statistics,
+									   Map<String, Integer> parallelism);
 }

@@ -19,62 +19,76 @@ package storm.feedback;
 
 import java.util.Map;
 
-class ComponentStatistics {
-	public boolean isSpout;
-
-	public long ackCount;
-	public double ackLatency;
-	public long receiveQueueLength;
-	public long sendQueueLength;
-	public double congestion;
+public class ComponentStatistics {
 	public long counter;
+	private boolean isSpout;
+
+	// spout stats
+	private long ackCount;
+	private double completeLatency;
+
+	// bolt stats
+	private double executeLatency;
+	public long executeCount;
+	public long receiveQueueLength;
+	private long sendQueueLength;
+
+	// so it compiles
+	public double congestion = 0;
 
 	public ComponentStatistics() {
+		counter = 0;
 		isSpout = false;
+
 		ackCount = 0;
-		ackLatency = 0;
+		completeLatency = 0;
+
+		executeLatency = 0;
+		executeCount = 0;
 		receiveQueueLength = 0;
 		sendQueueLength = 0;
-		congestion = 0;
-		counter = 0;
+	}
+
+	public boolean isSpout() {
+		return isSpout;
+	}
+
+	public long ackCount() {
+		return ackCount;
+	}
+
+	public double completeLatency() {
+		return completeLatency / counter;
+	}
+
+	public double executeLatency() {
+		if (executeCount == 0)
+			return 0;
+		return (executeLatency / 1000) / counter;
+	}
+
+	public double receiveLatency() {
+		if (executeCount == 0)
+			return 0;
+		return (double)receiveQueueLength / executeCount;
+	}
+
+	public double sendLatency() {
+		if (executeCount == 0)
+			return 0;
+		return (double)sendQueueLength / executeCount;
 	}
 
 	private void processBolt(Map<String, Object> dpMap) {
-		long ackCount = 0;
-		Map<String, Long> ackCountMap = (Map<String, Long>)dpMap.get("__ack-count");
-		for (Long val : ackCountMap.values()) {
-			ackCount += val;
-		}
-
 		double ackLatency = 0;
-		Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__process-latency");
+		Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__execute-latency");
 		for (Double val : ackLatencyMap.values()) {
-			ackLatency += val;
+			executeLatency += val;
 		}
 
-		if (ackCount > 0) {
-			this.ackLatency = (ackLatency * ackCount + this.ackLatency * this.ackCount) / (ackCount + this.ackCount);
-			this.ackCount += ackCount;
-		}
-	}
-
-	private void processSpout(Map<String, Object> dpMap) {
-		isSpout = true;
-
-		Map<String, Long> ackCounts = (Map<String, Long>)dpMap.get("__ack-count");
-		if (ackCounts.containsKey("default")) {
-			ackCount += ackCounts.get("default");
-		}
-	}
-
-	public void processDataPoints(Map<String, Object> dpMap) {
-		counter++;
-		if (dpMap.containsKey("__ack-count")) {
-			if (dpMap.containsKey("__execute-latency")) {
-				processBolt(dpMap);
-			} else {
-				processSpout(dpMap);
-			}
+		Map<String, Long> ackCountMap = (Map<String, Long>)dpMap.get("__execute-count");
+		for (Long val : ackCountMap.values()) {
+			executeCount += val;
 		}
 
 		if (dpMap.containsKey("__receive")) {
@@ -86,6 +100,32 @@ class ComponentStatistics {
 			Map<String, Long> send =
 				(Map<String, Long>)dpMap.get("__sendqueue");
 			sendQueueLength += send.get("population");
+		}
+	}
+
+	private void processSpout(Map<String, Object> dpMap) {
+		Map<String, Long> ackCounts = (Map<String, Long>)dpMap.get("__ack-count");
+		if (ackCounts.containsKey("default")) {
+			ackCount += ackCounts.get("default");
+		}
+
+		Map<String, Double> completeLatencies = (Map<String, Double>)dpMap.get("__complete-latency");
+		if (completeLatencies.containsKey("default")) {
+			completeLatency += completeLatencies.get("default");
+		}
+	}
+
+	public void processDataPoints(Map<String, Object> dpMap) {
+		// System.out.println("hello world " + dpMap);
+
+		counter++;
+		if (dpMap.containsKey("__ack-count")) {
+			if (dpMap.containsKey("__execute-latency")) {
+				processBolt(dpMap);
+			} else {
+				isSpout = true;
+				processSpout(dpMap);
+			}
 		}
 	}
 }
