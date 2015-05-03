@@ -32,6 +32,10 @@ import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 import storm.starter.spout.RandomSentenceSpout;
 
+import storm.auto.AutoSpout;
+import storm.auto.AutoBolt;
+import storm.auto.AutoTopologyBuilder;
+
 import storm.feedback.FeedbackMetricsConsumer;
 import storm.feedback.IFeedbackAlgorithm;
 import storm.feedback.RoundRobin;
@@ -84,63 +88,75 @@ public class WordCountTopology {
 
   public static void main(String[] args) throws Exception {
 	IFeedbackAlgorithm algorithm = null;
-	String arg = System.getProperty("feedback.algorithm", null);
-	if (arg == null) {
-	  System.out.println("No Algorithm Given");
-	  System.exit(1);
-	}
+	// String arg = System.getProperty("feedback.algorithm", null);
+	// if (arg == null) {
+	//   System.out.println("No Algorithm Given");
+	//   System.exit(1);
+	// }
 
+	// if (arg.equals("1")) {
+	//   algorithm = new RoundRobin();
+	// } else if (arg.equals("2")) {
+	//   algorithm = new CombinatorialAlgorithm();
+	// } else if (arg.equals("3")) {
+	//   algorithm = new CombinatorialAlgorithm2();
+	// } else {
+	//   System.out.println("Invalid Algorithm: " + arg);
+	//   System.exit(1);
+	// }
 
-	if (arg.equals("1")) {
-	  algorithm = new RoundRobin();
-	} else if (arg.equals("2")) {
-	  algorithm = new CombinatorialAlgorithm();
-	} else if (arg.equals("3")) {
-	  algorithm = new CombinatorialAlgorithm2();
-	} else {
-	  System.out.println("Invalid Algorithm: " + arg);
-	  System.exit(1);
-	}
+    // TopologyBuilder builder = new TopologyBuilder();
+	// int numTasks = 5;
 
-    TopologyBuilder builder = new TopologyBuilder();
-	int numTasks = 5;
+    // builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
+    // builder.setBolt("split", new SplitSentence(), 1).setNumTasks(numTasks).shuffleGrouping("spout");
+    // builder.setBolt("count", new WordCount(), 1).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
 
-    builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
-    builder.setBolt("split", new SplitSentence(), 1).setNumTasks(numTasks).shuffleGrouping("spout");
-    builder.setBolt("count", new WordCount(), 1).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
+	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
+
+	// builder.addSpout(AutoSpout.create("a", 10));
+	// builder.addBolt(AutoBolt.create("b", 100, 10)
+	// 				.addParent("a"));
+	// builder.addBolt(AutoBolt.create("c", 100, 10)
+	// 				.addParent("a"));
+	// builder.addBolt(AutoBolt.create("d", 0, 10)
+	// 				.addParent("b")
+	// 				.addParent("c"));
+
+	builder.addSpout(AutoSpout.create("a", 10));
+	builder.addBolt(AutoBolt.create("b", 200, 10)
+					.addParent("a"), 1);
+	builder.addBolt(AutoBolt.create("c", 150, 10)
+					.addParent("a"), 1);
+	builder.addBolt(AutoBolt.create("d", 150, 10)
+					.addParent("c"), 2);
+
 
     Config conf = new Config();
-    // conf.setDebug(true);
 	conf.setStatsSampleRate(1);
 	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-	conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, 1);
-	conf.setNumAckers(3);
+	conf.setNumAckers(1);
 	conf.setMaxTaskParallelism(10);
-	conf.setMaxSpoutPending(64);
-	conf.put(Config.NIMBUS_SUPERVISOR_TIMEOUT_SECS, 100);
+	conf.setMaxSpoutPending(1);
 
+	StormTopology topology = builder.createTopology();
     if (args != null && args.length > 0) {
-      conf.setNumWorkers(3);
+	  conf.setNumWorkers(2);
 
-      StormSubmitter.submitTopologyWithProgressBar(args[0], conf, builder.createTopology());
+	  String topologyName = args[0];
+	  FeedbackMetricsConsumer.register(conf, topologyName, topology);
+      StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, builder.createTopology());
     }
     else {
-      conf.setMaxTaskParallelism(10);
-
-      LocalCluster cluster = new LocalCluster();
+	  LocalCluster cluster = new LocalCluster();
 	  String topologyName = "word-count";
-	  StormTopology topology = builder.createTopology();
-
-
-	  algorithm.initialize(cluster, topologyName, topology);
-	  FeedbackMetricsConsumer.algorithm = algorithm;
-
+	  FeedbackMetricsConsumer.register(conf, topologyName, topology, cluster);
       cluster.submitTopology(topologyName, conf, topology);
 
 	  while(1<2)
 		  Thread.sleep(60 * 1000);
 
-      //cluster.shutdown();
+      // cluster.shutdown();
     }
   }
 }

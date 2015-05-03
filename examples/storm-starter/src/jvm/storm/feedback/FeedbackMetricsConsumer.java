@@ -34,6 +34,7 @@ import java.util.Arrays;
 import org.apache.thrift7.TException;
 import org.apache.commons.math3.distribution.NormalDistribution;
 
+import backtype.storm.Config;
 import backtype.storm.ILocalCluster;
 import backtype.storm.metric.api.IMetricsConsumer;
 import backtype.storm.task.IErrorReporter;
@@ -43,8 +44,9 @@ import backtype.storm.utils.BufferFileInputStream;
 import backtype.storm.utils.Utils;
 import backtype.storm.utils.NimbusClient;
 
+import storm.feedback.ranking.CongestionRanker;
+
 public class FeedbackMetricsConsumer implements IMetricsConsumer {
-	public static IFeedbackAlgorithm algorithm;
 	public static final Logger LOG = LoggerFactory.getLogger(FeedbackMetricsConsumer.class);
 
 	private TopologyContext _context;
@@ -58,6 +60,9 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	/* How many samples to keep in the window */
 	private int windowSize;
 
+	// The algorithm!
+	private IFeedbackAlgorithm algorithm;
+
 	private boolean isMetricComponent(String component) {
 		String metricPrefix = "__metrics";
 		return component.length() >= metricPrefix.length()
@@ -67,22 +72,15 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	 @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		_context = context;
-
-		if (algorithm != null) {
-			if (algorithm.isPrepared()) {
-				algorithm.onRebalance();
-			} else {
-				algorithm.prepare(stormConf, context);
-			}
-		}
+		algorithm = createAlgorithm(stormConf, context, registrationArgument);
 
 		windowSize = 5;
 
 		// set up data collection
 		dpwindow = new HashMap<Integer, DataPointWindow>();
 		counter = new HashMap<Integer, Integer>();
-		// mapLastAction = new HashMap<String, LastAction>();
-		counter.put(-1, 0);
+
+		counter.put(-1, 0); // -1 is the __system task
 		for (int i : _context.getTaskToComponent().keySet()) {
 			if (!isMetricComponent(_context.getTaskToComponent().get(i))) {
 				dpwindow.put(i, new DataPointWindow(windowSize));
@@ -106,17 +104,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				}
 			}
 		}
-
-		// calculate the normalized congestion value (num queued / num processed)
-		double total = 0;
-		for (ComponentStatistics stats : result.values()) {
-			stats.congestion = (double)stats.receiveQueueLength / stats.ackCount;
-			total += stats.congestion;
-		}
-		for (ComponentStatistics stats : result.values()) {
-			stats.congestion /= total;
-		}
-
 		return result;
 	}
 
@@ -124,34 +111,41 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	public long getTotalAcks(Map<String, ComponentStatistics> statistics) {
 		long totalAcks = 0;
 		for (ComponentStatistics stats : statistics.values()) {
-			if (stats.isSpout) {
-				totalAcks += stats.ackCount;
+			if (stats.isSpout()) {
+				totalAcks += stats.ackCount();
 			}
 		}
 		return totalAcks;
 	}
 
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
-		// record.add((double)totalAcks / elapsedTime);
-		// if (record.size() > 5) {
-		// 	// hard coded data for testing
-		// 	// Double[] sample = new Double[] {
-		// 	// 	945.6,
-		// 	// 	1011.4,
-		// 	// 	950.8,
-		// 	// 	1013.6,
-		// 	// 	1013.6
-		// 	// };
-		// 	significantIncrease(
-		// 		Arrays.asList(sample),
-		// 		record.subList(record.size()-5, record.size()));
-		// }
-
 		System.out.println("FEEDBACK acks/second: " + getTotalAcks(statistics) / windowSize);
 
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".congestion = " + Math.round(stats.congestion * 100) + "%");
+			if (stats.isSpout()) {
+				System.out.println(component + ".completeLatency = " + stats.completeLatency() + " ms");
+			}
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".send = " + stats.sendLatency() + " ms");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".execute = " + stats.executeLatency() + " ms");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".receive = " + stats.receiveLatency() + " ms");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".executeCount = " + stats.executeCount / windowSize);
 		}
 	}
 
@@ -170,9 +164,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		if (taskId == -1 && count > windowSize) {
 			stats = collectStatistics();
 			printStatistics(stats);
-			if (algorithm != null) {
-				algorithm.update(getTotalAcks(stats)/windowSize, stats);
-			}
+			algorithm.update(getTotalAcks(stats)/windowSize, stats);
 		}
 
 		// Update the window
@@ -201,5 +193,51 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		void putDataPoints(int counter, Map<String, Object> dataPoints) {
 			dps.set(counter % k, dataPoints);
 		}
+	}
+
+	public IFeedbackAlgorithm createAlgorithm(Map stormConf, TopologyContext context, Object arg) {
+		Map argDict = (Map)arg;
+		String name = (String)argDict.get("name");
+
+		// argument is serialized to JSON, so we have to convert Longs into Integers
+		Map<String, Long> temp = (Map<String, Long>)argDict.get("parallelism");
+		Map<String, Integer> parallelism = new HashMap<String, Integer>();
+		for (String key : temp.keySet()) {
+			parallelism.put(key, temp.get(key).intValue());
+		}
+
+		// TODO: select algorithm based on stormConf
+		// IFeedbackAlgorithm algorithm = new RoundRobin();
+		IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm3(new CongestionRanker());
+		algorithm.initialize(name, stormConf, context, parallelism);
+		return algorithm;
+	}
+
+	private static Map<String, Integer> getParallelism(StormTopology topology) {
+		Map<String, Integer> configuration = new HashMap<String, Integer>();
+		Map<String, Bolt> bolts = topology.get_bolts();
+		for(String i : bolts.keySet()) {
+			int p = bolts.get(i).get_common().get_parallelism_hint();
+			configuration.put(i, p);
+		}
+		Map<String, SpoutSpec> spouts = topology.get_spouts();
+		for(String i : spouts.keySet()) {
+			int p = spouts.get(i).get_common().get_parallelism_hint();
+			configuration.put(i, p);
+		}
+		return configuration;
+	}
+
+	public static void register(Config conf, String name, StormTopology topology) {
+		Map<String, Object> arg = new HashMap<String, Object>();
+		arg.put("name", name);
+		arg.put("parallelism", getParallelism(topology));
+		conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, arg, 1);
+	}
+
+	public static void register(Config conf, String name, StormTopology topology,
+								ILocalCluster localCluster) {
+		register(conf, name, topology);
+		BaseFeedbackAlgorithm.localCluster = localCluster;
 	}
 }

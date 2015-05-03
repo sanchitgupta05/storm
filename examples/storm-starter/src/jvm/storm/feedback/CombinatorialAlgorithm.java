@@ -21,14 +21,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.Math;
-
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.apache.thrift7.TException;
 import org.apache.commons.math3.distribution.NormalDistribution;
@@ -42,189 +45,83 @@ import backtype.storm.utils.BufferFileInputStream;
 import backtype.storm.utils.Utils;
 import backtype.storm.utils.NimbusClient;
 
+import storm.feedback.ranking.IRanker;
 
 public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
-	
-	private static Integer DESIRED_ACKS_PER_SECONDS = 3000 ;
-	private static Integer MAX_PARALLELISM_HINT = 10;
+	private IRanker ranker;
 
-	private ILocalCluster localCluster;
-	private String localTopologyName;
-
-	private TopologyContext _context;
-	private Integer numIterationOfAlgorithm;
-	
-	/* Maps Components to the Last Action*/
-	private HashMap<String, LastAction> mapComponentToLastAction;
-	private HashMap<String, LastAction> _bufferMapComponentToLastAction;
-
-	/* Maps the parallelism Hint per Component*/
-	private HashMap<String, Integer> mapTaskParallel;
-	
-	/* Maps congestion to the component */
-	private HashMap<Double, String> mapCongestionToComponent;
-
-	private static int counter;
-	private boolean reverted;
-
-	@Override
-	public void initialize(ILocalCluster cluster, String name, StormTopology topology) {
-		super.initialize(cluster, name,topology);
-		
-		localCluster = cluster;
-		numIterationOfAlgorithm = 0;
-		localTopologyName = name;
-
-		counter = 0;
-
-		mapComponentToLastAction = new HashMap<String, LastAction>();
-		_bufferMapComponentToLastAction = new HashMap<String, LastAction>();
-		mapTaskParallel = new HashMap<String, Integer>();
-		mapCongestionToComponent = new HashMap<Double, String>();
-
-		getParallelismHint(topology);	
-	}
-	
-
-	@Override
-	public void prepare(Map stormConf, TopologyContext context) {
-		super.prepare(stormConf, context);
-	
-		_context = context;
-		getComponentsOfTopology();
-	}
-	
-	@Override
-	protected void runAlgorithm(double acksPerSecond, Map<String, ComponentStatistics> statistics) {
-		
-		counter++;
-
-		
-		
-
-		if(acksPerSecond < DESIRED_ACKS_PER_SECONDS &&
-				counter >= 15) {		
-			counter = 0;	
-			
-			int numOfIterations = (int)Math.ceil(++numIterationOfAlgorithm/(double)(mapTaskParallel.size()-1));
-			
-			if(numOfIterations > mapTaskParallel.size()) {
-				numOfIterations = 1;
-				numIterationOfAlgorithm = 0;
-			}
-			
-			__algorithm(numOfIterations, acksPerSecond, statistics);
-			
-			System.out.println("ALGORITHM RAN ! NUM OF ITERATIONS: " + numOfIterations + "\n");
-		}	
+	public CombinatorialAlgorithm(IRanker ranker) {
+		this.ranker = ranker;
 	}
 
-	private void __algorithm(int numRunAlgorithm, double acksPerSecond, Map<String, 
-									ComponentStatistics> statistics) {
+	public List<Set<String>> run(Map<String, ComponentStatistics> statistics) {
+		List<String> ranking = ranker.rankComponents(
+			topologyContext,
+			statistics,
+			parallelism);
 
-		if(throughputIncreased() || reverted) {
-			reverted = false;
-			mapComponentToLastAction.clear();
-			if(!_bufferMapComponentToLastAction.isEmpty()) 
-				mapComponentToLastAction.putAll(_bufferMapComponentToLastAction);
-			
-		} else if(!_bufferMapComponentToLastAction.isEmpty()) {
-			for(String comp : _bufferMapComponentToLastAction.keySet()) {
-				mapTaskParallel.put(comp, 
-						_bufferMapComponentToLastAction.get(comp).oldParallelismHint - 1);
-			}
-			_bufferMapComponentToLastAction.clear();
-			numRunAlgorithm = 0;		// cannot run algorithm anymore
-			reverted = true;
-		} 
-		//else { return;}
+		// truncate list to reduce possible combinations
+		int k = 3;
+		if (ranking.size() > k)
+			ranking = ranking.subList(0, k);
 
-		int taskParallel = 0; 
-		double maxCongestion = 0;
-		String component;
-		
-		/* get the mapping from Queue length to Component */
-		for(String kk : statistics.keySet()) {
-			if (!kk.substring(0, 2).equals("__")) {
-				mapCongestionToComponent.put((double)(statistics.get(kk).receiveQueueLength
-													+Math.random()), kk);
-		
+		// return all combinations of the ranked components
+		// starts with subsets of size 1, then size 2, etc
+		List<Set<String>> result = new ArrayList<Set<String>>();
+		for (int i=1; i<=k; i++) {
+			CombinationGenerator gen = new CombinationGenerator(i, ranking);
+			result.add(gen.get());
+			while (gen.next()) {
+				result.add(gen.get());
 			}
 		}
 
-		System.out.println("CONGESTION TO COMPONENT: " + mapCongestionToComponent + "\n");
+		System.out.println("Actions: " + result);
+		return result;
+	}
 
-		for(int i = numRunAlgorithm; i > 0; i--) {
-			for(double k : mapCongestionToComponent.keySet()) {
-				if(k > maxCongestion) {
-					maxCongestion = k;
+	public class CombinationGenerator {
+		public int k;
+		private List<String> components;
+		private int[] toIncrease;
+
+		public CombinationGenerator(int k, List<String> components) {
+			this.k = k;
+			this.components = components;
+			toIncrease = new int[k];
+			for (int i=0; i<k; i++) {
+				toIncrease[i] = i;
+			}
+		}
+
+		private boolean tryIncrement(int i) {
+			if (i < 0) {
+				return false;
+			}
+
+			int next = toIncrease[i] + 1;
+			if (next >= components.size()
+				|| (i + 1 < toIncrease.length
+					&& next >= toIncrease[i+1])) {
+				return tryIncrement(i-1);
+			} else {
+				for (int j=i; j<toIncrease.length; j++) {
+					toIncrease[j] = next + (j - i);
 				}
-			}
-			component = mapCongestionToComponent.remove(maxCongestion);
-			maxCongestion = 0;
-			System.out.println(" OLD MAPTASKPARALLEL: " + mapTaskParallel + "\n" + "COMPONENT :" + component + "\n");
-			try {
-				taskParallel =  mapTaskParallel.get(component);
-			} catch(NullPointerException e) {
-				continue;
-			}
-			mapTaskParallel.put(component, taskParallel+1);
-			System.out.println(" NEW MAPTASKPARALLEL: " + mapTaskParallel + "\n");
-			
-			// create a buffer last action for this
-			LastAction _lastAction = new LastAction();
-			_lastAction.updateAction(component, taskParallel+1, acksPerSecond, false);
-			_bufferMapComponentToLastAction.put(component, _lastAction);
-		}
-
-		rebalance(mapTaskParallel);
-	}
-
-	private void getParallelismHint(StormTopology topology) {
-		Map<String, Bolt> bolts = topology.get_bolts();
-		Map<String, SpoutSpec> spouts = topology.get_spouts();
-	
-		for(String i : bolts.keySet()) {
-			mapTaskParallel.put(i,
-				bolts.get(i).get_common().get_parallelism_hint());
-		}
-		for(String i : spouts.keySet()) {
-			mapTaskParallel.put(i,
-				spouts.get(i).get_common().get_parallelism_hint());
-		}
-	}
-
-	private void getComponentsOfTopology() {
-		for (int i=0; i<_context.getTaskToComponent().size(); i++) {
-			String component = _context.getTaskToComponent().get(i);
-			if (component != null) {
-				if (!component.substring(0, 2).equals("__")) {
-					mapTaskParallel.put(component, 1);
-				}
+				return true;
 			}
 		}
-	}
 
-	public class LastAction {
-		public String component;
-		public Integer oldParallelismHint;
-		public double oldAcksPerSecond;
-		Boolean oldStartAParallelBolt;
-
-		public  LastAction() {
-			component = "";
-			oldAcksPerSecond = 0;
-			oldParallelismHint = 0;
-			oldStartAParallelBolt = false;
+		public boolean next() {
+			return tryIncrement(toIncrease.length - 1);
 		}
 
-		public void updateAction(String comp, Integer parallelHint, double acksPerSecond, Boolean startABolt) {
-			component = comp;
-			oldParallelismHint = parallelHint;
-			oldAcksPerSecond = acksPerSecond;
-			oldStartAParallelBolt = startABolt;
+		public Set<String> get() {
+			Set<String> result = new HashSet<String>();
+			for (int i=0; i<toIncrease.length; i++) {
+				result.add(components.get(toIncrease[i]));
+			}
+			return result;
 		}
 	}
-
 }
-
