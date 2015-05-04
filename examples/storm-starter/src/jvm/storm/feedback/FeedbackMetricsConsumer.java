@@ -103,6 +103,9 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				}
 			}
 		}
+		for (ComponentStatistics stats : result.values()) {
+			stats.finish(windowSize);
+		}
 		return result;
 	}
 
@@ -110,8 +113,8 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	public long getTotalAcks(Map<String, ComponentStatistics> statistics) {
 		long totalAcks = 0;
 		for (ComponentStatistics stats : statistics.values()) {
-			if (stats.isSpout()) {
-				totalAcks += stats.ackCount();
+			if (stats.isSpout) {
+				totalAcks += stats.ackCount;
 			}
 		}
 		return totalAcks;
@@ -158,7 +161,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		if (minCounter > lastMinCounter && minCounter > windowSize) {
 			lastMinCounter = minCounter;
 			Map<String, ComponentStatistics> stats = collectStatistics();
-			algorithm.update(getTotalAcks(stats)/windowSize, stats);
+			algorithm.update(getTotalAcks(stats), stats);
 		}
 
 		// Update the window

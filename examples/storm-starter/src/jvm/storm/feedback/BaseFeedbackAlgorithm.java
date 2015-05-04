@@ -318,32 +318,42 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
-			if (stats.isSpout()) {
-				System.out.println(component + ".completeLatency = " + stats.completeLatency() + " ms");
+			if (stats.isSpout) {
+				System.out.println(component + ".completeLatency = " + stats.completeLatency + " ms");
 			}
 		}
 
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".send = " + stats.sendLatency() + " ms");
+			System.out.println(component + ".send = " + stats.sendLatency + " ms");
 		}
 
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".execute = " + stats.executeLatency() + " ms");
+			System.out.println(component + ".execute = " + stats.executeLatency + " ms");
 		}
 
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
-			System.out.println(component + ".receive = " + stats.receiveLatency() + " ms");
+			System.out.println(component + ".receive = " + stats.receiveLatency + " ms");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".emitCount = " + stats.emitCount + " tuples/s");
+		}
+
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".outputRate = " + stats.outputRate + " tuples/s");
 		}
 	}
 
 	protected String topologyStatus() {
 		try {
 			if (localCluster != null) {
-				return null;
-				// return (String)localCluster.getState().get(topologyName);
+				return localCluster.getTopologyInfo(
+					topologyContext.getStormId()).get_status();
 			} else {
 				NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
 				return client.getClient().getTopologyInfo(
