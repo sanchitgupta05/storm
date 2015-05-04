@@ -18,23 +18,30 @@
 package storm.feedback;
 
 import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 public class ComponentStatistics {
 	public long counter;
-	private boolean isSpout;
+	public boolean isSpout;
 
 	// spout stats
-	private long ackCount;
-	private double completeLatency;
+	public double ackCount;
+	public double completeLatency;
 
 	// bolt stats
-	private double executeLatency;
-	public long executeCount;
-	public long receiveQueueLength;
-	private long sendQueueLength;
+	public Map<String, Double> ackLatency;
+	public double executeLatency;
+	public double executeCount;
+	public double emitCount;
+	public double receiveQueueLength;
+	public double sendQueueLength;
+	public List<Long> sendQueueRead;
 
-	// so it compiles
-	public double congestion = 0;
+	public double receiveLatency;
+	public double sendLatency;
+	public double outputRate;
 
 	public ComponentStatistics() {
 		counter = 0;
@@ -43,63 +50,55 @@ public class ComponentStatistics {
 		ackCount = 0;
 		completeLatency = 0;
 
+		ackLatency = new HashMap<String, Double>();
 		executeLatency = 0;
 		executeCount = 0;
+		emitCount = 0;
 		receiveQueueLength = 0;
 		sendQueueLength = 0;
-	}
+		sendQueueRead = new ArrayList<Long>();
 
-	public boolean isSpout() {
-		return isSpout;
-	}
-
-	public long ackCount() {
-		return ackCount;
-	}
-
-	public double completeLatency() {
-		return completeLatency / counter;
-	}
-
-	public double executeLatency() {
-		if (executeCount == 0)
-			return 0;
-		return (executeLatency / 1000) / counter;
-	}
-
-	public double receiveLatency() {
-		if (executeCount == 0)
-			return 0;
-		return (double)receiveQueueLength / executeCount;
-	}
-
-	public double sendLatency() {
-		if (executeCount == 0)
-			return 0;
-		return (double)sendQueueLength / executeCount;
+		receiveLatency = 0;
+		sendLatency = 0;
+		outputRate = 0;
 	}
 
 	private void processBolt(Map<String, Object> dpMap) {
-		double ackLatency = 0;
-		Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__execute-latency");
-		for (Double val : ackLatencyMap.values()) {
+		Map<String, Double> ackLatencyMap = (Map<String, Double>)dpMap.get("__process-latency");
+		for (String id : ackLatencyMap.keySet()) {
+			int pos = id.indexOf(":default");
+			if (pos >= 0) {
+				String component = id.substring(0, pos);
+				double val = ackLatency.containsKey(component)
+					? ackLatency.get(component) : 0;
+				ackLatency.put(component, val + ackLatencyMap.get(id));
+			}
+		}
+
+		Map<String, Double> executeLatencyMap = (Map<String, Double>)dpMap.get("__execute-latency");
+		for (Double val : executeLatencyMap.values()) {
 			executeLatency += val;
 		}
 
-		Map<String, Long> ackCountMap = (Map<String, Long>)dpMap.get("__execute-count");
-		for (Long val : ackCountMap.values()) {
+		Map<String, Long> executeCountMap = (Map<String, Long>)dpMap.get("__execute-count");
+		for (Long val : executeCountMap.values()) {
 			executeCount += val;
 		}
 
-		if (dpMap.containsKey("__receive")) {
-			Map<String, Long> receive =
-				(Map<String, Long>)dpMap.get("__receive");
+		Map<String, Long> emitCountMap = (Map<String, Long>)dpMap.get("__emit-count");
+		if (emitCountMap != null && emitCountMap.containsKey("default")) {
+			emitCount += emitCountMap.get("default");
+		}
+
+		Map<String, Long> receive = (Map<String, Long>)dpMap.get("__receive");
+		if (receive != null) {
 			receiveQueueLength += receive.get("population");
 		}
-		if (dpMap.containsKey("__sendqueue")) {
-			Map<String, Long> send =
-				(Map<String, Long>)dpMap.get("__sendqueue");
+
+		Map<String, Long> send = (Map<String, Long>)dpMap.get("__sendqueue");
+		if (send != null) {
 			sendQueueLength += send.get("population");
+			sendQueueRead.add(send.get("read_pos"));
 		}
 	}
 
@@ -113,6 +112,44 @@ public class ComponentStatistics {
 		if (completeLatencies.containsKey("default")) {
 			completeLatency += completeLatencies.get("default");
 		}
+	}
+
+	public void finish(int windowSize) {
+		// counts should be divided by windowSize (since we sum over tasks)
+		// latencies should be divided by counter (since we average over tasks)
+
+		if (counter <= 0)
+			return;
+
+		ackCount /= windowSize;
+		completeLatency /= counter;
+
+		for (String component : ackLatency.keySet()) {
+			ackLatency.put(component, ackLatency.get(component) / counter);
+		}
+		executeLatency /= counter;
+		executeCount /= windowSize;
+		emitCount /= windowSize;
+		receiveQueueLength /= windowSize;
+		sendQueueLength /= windowSize;
+
+		// Add some special metrics
+		receiveLatency = receiveQueueLength * (1000 / executeCount);
+		sendLatency = sendQueueLength * (1000 / emitCount);
+
+		// Figure out the total output rate of all the tasks combined
+		long minRead = -1;
+		long maxRead = -1;
+		for (Long r : sendQueueRead) {
+			if (minRead < 0 || r < minRead) {
+				minRead = r;
+			}
+			if (maxRead < 0 || r > maxRead) {
+				maxRead = r;
+			}
+		}
+		outputRate = (counter / windowSize) *
+			(double)(maxRead - minRead) / (windowSize - 1);
 	}
 
 	public void processDataPoints(Map<String, Object> dpMap) {

@@ -39,9 +39,9 @@ public class CongestionRanker implements IRanker {
 			for (String component : components) {
 				ComponentStatistics stats = statistics.get(component);
 				double congestion =
-					stats.receiveLatency() +
-					stats.executeLatency() +
-					stats.sendLatency();
+					stats.receiveLatency +
+					stats.executeLatency +
+					stats.sendLatency;
 				if (congestion > max) {
 					max = congestion;
 					maxComponent = component;
