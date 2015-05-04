@@ -231,7 +231,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			}
 		} catch (Exception e) {
 			System.out.println("Caught EXCEPTION " + e + "in update()");
-			return;
+			
 		}
 
 		LOG.info("updateCounter = " + updateCounter);
@@ -378,4 +378,14 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	protected abstract List<Set<String>> run(Map<String, ComponentStatistics> statistics);
+	
+	// TODO This will only be implemented for the Global State Optimizing Algorithm 
+	// Output: Map from Component name --> New parallelism Hint figures
+	
+	public Map<String, Integer> runGA(Map<String, ComponentStatistics> stats) {
+		return null;
+	}
+
 }
+
+

@@ -127,4 +127,3 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 	}
 }
 
-
