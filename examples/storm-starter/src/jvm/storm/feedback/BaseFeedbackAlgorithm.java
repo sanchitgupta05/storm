@@ -225,8 +225,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		LOG.info("Topology Status: " + status);
 
 		// wait sufficiently after rebalancing to run the algorithm again
-		if (status.equals("REBALANCING")) {
-			updateCounter = -5;
+		try {	
+			if (status.equals("REBALANCING")) {
+				updateCounter = -5;
+			}
+		} catch (Exception e) {
+			System.out.println("Caught EXCEPTION " + e + "in update()");
+			return;
 		}
 
 		LOG.info("updateCounter = " + updateCounter);
