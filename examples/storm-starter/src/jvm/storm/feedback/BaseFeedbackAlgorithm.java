@@ -63,6 +63,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 
 	protected Map stormConf;
 	protected TopologyContext topologyContext;
+	protected StormTopology _stormTopology;
 	private String topologyName;
 	private Map<String, Integer> startingParallelism;
 
@@ -72,11 +73,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	@Override
 	public void initialize(String topologyName, Map stormConf,
 						   TopologyContext topologyContext,
-						   Map<String, Integer> startingParallelism) {
+						   Map<String, Integer> startingParallelism,
+							StormTopology topology) {
 		this.topologyName = topologyName;
 		this.stormConf = stormConf;
 		this.topologyContext = topologyContext;
 		this.startingParallelism = startingParallelism;
+		this._stormTopology = topology;
 
 		newThroughputs = new ArrayList<Double>();
 		updateCounter = 0;
@@ -254,6 +257,59 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
+<<<<<<< HEAD
+=======
+	private void applyNextAction(Map<String, ComponentStatistics> statistics) {
+		if (history == null) {
+			history = new ArrayList<Set<String>>();
+		}
+
+		// find the first action that isn't in the history
+		Set<String> action = null;
+		List<Set<String>> actions = run(statistics);
+		for (int i=0; i<actions.size(); i++) {
+			if (!history.contains(actions.get(i))) {
+				action = actions.get(i);
+				break;
+			}
+		}
+
+		if (action != null) {
+			history.add(action);
+			oldThroughputs = newThroughputs;
+			oldParallelism = new HashMap<String, Integer>(parallelism);
+			System.out.println(parallelism);
+			for (String component : action) {
+				int p = oldParallelism.get(component);
+				parallelism.put(component, p + 1);
+			}
+			save();
+			rebalance();
+		}
+
+		Map<String, Integer> newAssignment = runGA(statistics);
+		if (newAssignment != null) {
+			//history.add(action);
+			oldThroughputs = newThroughputs;
+			oldParallelism = new HashMap<String, Integer>(parallelism);
+			System.out.println("OLD PARALLELISM: " + parallelism);
+			parallelism = newAssignment;
+			System.out.println("NEW GA PARALLELISM: " + parallelism);
+			save();
+			rebalance();
+		}
+
+	}
+
+	private void revertAction() {
+		parallelism = oldParallelism;
+		oldParallelism = null;
+		oldThroughputs = null;
+		save();
+		rebalance();
+	}
+
+>>>>>>> 966a3ea2ffaa9638618aaea0a7c1766632898f42
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
@@ -328,5 +384,17 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
+<<<<<<< HEAD
 	public abstract void runAlgorithm(Map<String, ComponentStatistics> statistics);
+=======
+	protected abstract List<Set<String>> run(Map<String, ComponentStatistics> statistics);
+
+	// TODO This will only be implemented for the Global State Optimizing Algorithm
+	// Output: Map from Component name --> New parallelism Hint figures
+
+	public Map<String, Integer> runGA(Map<String, ComponentStatistics> stats) {
+		return null;
+	}
+
+>>>>>>> 966a3ea2ffaa9638618aaea0a7c1766632898f42
 }
