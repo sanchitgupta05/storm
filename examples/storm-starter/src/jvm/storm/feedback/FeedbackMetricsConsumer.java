@@ -60,6 +60,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	private int windowSize;
 	private int lastMinCounter;
 	private IFeedbackAlgorithm algorithm;
+	private static StormTopology _stormTopology;
 
 	private boolean isMetricComponent(String component) {
 		String metricPrefix = "__metrics";
@@ -203,8 +204,11 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 		// TODO: select algorithm based on stormConf
 		// IFeedbackAlgorithm algorithm = new RoundRobin();
-		IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
-		algorithm.initialize(name, stormConf, context, parallelism);
+		//IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+		//algorithm.initialize(name, stormConf, context, parallelism, _stormTopology);
+		IFeedbackAlgorithm algorithm = new GAlgorithm(new CongestionRanker());
+		algorithm.initialize(name, stormConf, context, parallelism, _stormTopology);
+		
 		return algorithm;
 	}
 
@@ -234,5 +238,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 								ILocalCluster localCluster) {
 		register(conf, name, topology);
 		BaseFeedbackAlgorithm.localCluster = localCluster;
+		_stormTopology = topology;
 	}
 }

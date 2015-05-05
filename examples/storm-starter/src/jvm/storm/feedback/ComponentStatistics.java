@@ -41,6 +41,8 @@ public class ComponentStatistics {
 
 	public double receiveLatency;
 	public double sendLatency;
+
+	
 	public double outputRate;
 
 	public ComponentStatistics() {

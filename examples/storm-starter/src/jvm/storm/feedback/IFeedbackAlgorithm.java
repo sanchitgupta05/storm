@@ -27,6 +27,6 @@ import java.util.Map;
 
 public interface IFeedbackAlgorithm {
 	void initialize(String topologyName, Map stormConf,
-					TopologyContext context, Map<String, Integer> parallelism);
+					TopologyContext context, Map<String, Integer> parallelism, StormTopology topology);
 	void update(double throughput, Map<String, ComponentStatistics> statistics);
 }

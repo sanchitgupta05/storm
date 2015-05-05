@@ -63,6 +63,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 
 	protected Map stormConf;
 	protected TopologyContext topologyContext;
+	protected StormTopology _stormTopology;
 	private String topologyName;
 	private Map<String, Integer> startingParallelism;
 
@@ -72,11 +73,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	@Override
 	public void initialize(String topologyName, Map stormConf,
 						   TopologyContext topologyContext,
-						   Map<String, Integer> startingParallelism) {
+						   Map<String, Integer> startingParallelism,
+							StormTopology topology) {
 		this.topologyName = topologyName;
 		this.stormConf = stormConf;
 		this.topologyContext = topologyContext;
 		this.startingParallelism = startingParallelism;
+		this._stormTopology = topology;
 
 		newThroughputs = new ArrayList<Double>();
 		updateCounter = 0;
@@ -305,6 +308,19 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			save();
 			rebalance();
 		}
+
+		Map<String, Integer> newAssignment = runGA(statistics);
+		if (newAssignment != null) {
+			//history.add(action);
+			oldThroughputs = newThroughputs;
+			oldParallelism = new HashMap<String, Integer>(parallelism);
+			System.out.println("OLD PARALLELISM: " + parallelism);
+			parallelism = newAssignment;	
+			System.out.println("NEW GA PARALLELISM: " + parallelism);
+			save();
+			rebalance();
+		}
+
 	}
 
 	private void revertAction() {
