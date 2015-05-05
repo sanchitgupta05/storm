@@ -59,8 +59,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 	private int windowSize;
 	private int lastMinCounter;
-	private IFeedbackAlgorithm algorithm;
-	private static StormTopology _stormTopology;
+	private AlgorithmState algorithmState;
 
 	private boolean isMetricComponent(String component) {
 		String metricPrefix = "__metrics";
@@ -71,7 +70,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	 @Override
     public void prepare(Map stormConf, Object registrationArgument, TopologyContext context, IErrorReporter errorReporter) {
 		_context = context;
-		algorithm = createAlgorithm(stormConf, context, registrationArgument);
+		algorithmState = createAlgorithmState(stormConf, context, registrationArgument);
 
 		windowSize = 5;
 		lastMinCounter = 0;
@@ -169,7 +168,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		if (minCounter > lastMinCounter && minCounter > windowSize) {
 			lastMinCounter = minCounter;
 			Map<String, ComponentStatistics> stats = collectStatistics();
-			algorithm.update(getTotalAcks(stats), stats);
+			algorithmState.update(getTotalAcks(stats), stats);
 		}
 
 		// Update the window
@@ -198,7 +197,15 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		}
 	}
 
-	public IFeedbackAlgorithm createAlgorithm(Map stormConf, TopologyContext context, Object arg) {
+	private IFeedbackAlgorithm createAlgorithm(Map stormConf) {
+		// TODO: select algorithm based on stormConf
+		return new RoundRobin();
+		// IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+		// IFeedbackAlgorithm algorithm = new GAlgorithm(new CongestionRanker());
+		// return new BeamSearchAlgorithm();
+	}
+
+	private AlgorithmState createAlgorithmState(Map stormConf, TopologyContext context, Object arg) {
 		Map argDict = (Map)arg;
 		String name = (String)argDict.get("name");
 
@@ -209,14 +216,9 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			parallelism.put(key, temp.get(key).intValue());
 		}
 
-		// TODO: select algorithm based on stormConf
-		// IFeedbackAlgorithm algorithm = new RoundRobin();
-		//IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
-		//algorithm.initialize(name, stormConf, context, parallelism, _stormTopology);
-		IFeedbackAlgorithm algorithm = new GAlgorithm(new CongestionRanker());
-		algorithm.initialize(name, stormConf, context, parallelism, _stormTopology);
-
-		return algorithm;
+		AlgorithmState state = new AlgorithmState(createAlgorithm(stormConf));
+		state.initialize(name, stormConf, context, parallelism);
+		return state;
 	}
 
 	private static Map<String, Integer> getParallelism(StormTopology topology) {
@@ -247,7 +249,6 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	public static void register(Config conf, String name, StormTopology topology,
 								ILocalCluster localCluster) {
 		register(conf, name, topology);
-		BaseFeedbackAlgorithm.localCluster = localCluster;
-		_stormTopology = topology;
+		AlgorithmState.localCluster = localCluster;
 	}
 }

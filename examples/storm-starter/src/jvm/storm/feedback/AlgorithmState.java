@@ -46,8 +46,8 @@ import backtype.storm.utils.Utils;
 import backtype.storm.utils.ZookeeperAuthInfo;
 import backtype.storm.utils.NimbusClient;
 
-public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
-	public static final Logger LOG = LoggerFactory.getLogger(BaseFeedbackAlgorithm.class);
+public class AlgorithmState {
+	public static final Logger LOG = LoggerFactory.getLogger(AlgorithmState.class);
 
 	// If this is set, don't connect to Nimbus
 	public static ILocalCluster localCluster;
@@ -56,30 +56,29 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	private CuratorFramework zookeeper;
 
 	// These are stored in zookeeper
-	protected Map<String, Integer> parallelism;
-	protected Map<String, Integer> oldParallelism;
-	protected List<Double> oldThroughputs;
-	protected List<Set<String>> history;
+	public Map<String, Integer> parallelism;
 
-	protected Map stormConf;
-	protected TopologyContext topologyContext;
-	protected StormTopology _stormTopology;
+	public Map stormConf;
+	public TopologyContext topologyContext;
 	private String topologyName;
 	private Map<String, Integer> startingParallelism;
 
-	protected List<Double> newThroughputs;
+	public List<Double> newThroughputs;
 	private int updateCounter;
+	private IFeedbackAlgorithm algorithm;
 
-	@Override
+	public AlgorithmState(IFeedbackAlgorithm algorithm) {
+		this.algorithm = algorithm;
+		algorithm.setState(this);
+	}
+
 	public void initialize(String topologyName, Map stormConf,
 						   TopologyContext topologyContext,
-						   Map<String, Integer> startingParallelism,
-							StormTopology topology) {
+						   Map<String, Integer> startingParallelism) {
 		this.topologyName = topologyName;
 		this.stormConf = stormConf;
 		this.topologyContext = topologyContext;
 		this.startingParallelism = startingParallelism;
-		this._stormTopology = topology;
 
 		newThroughputs = new ArrayList<Double>();
 		updateCounter = 0;
@@ -99,7 +98,6 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			// First iteration of algorithm
 			parallelism = startingParallelism;
 		}
-
 
 		LOG.info("zookeeper path: " + basePath);
 		LOG.info("parallelism rebalance " + System.currentTimeMillis());
@@ -122,9 +120,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	public Object loadObject(String path) {
+		String fullpath = basePath + "/" + path;
 		try {
-			return deserialize(zookeeper.getData().forPath(path));
+			Object result = deserialize(zookeeper.getData().forPath(fullpath));
+			System.out.format("Loaded %s: %s\n", path, result);
+			return result;
 		} catch (KeeperException.NoNodeException e) {
+			System.out.format("Loaded %s: %s\n", path, null);
 			return null;
 		} catch (Exception e) {
 			LOG.error("loadObject Exception: " + e);
@@ -133,64 +135,43 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	public void saveObject(String path, Object obj) {
+		String fullpath = basePath + "/" + path;
 		try {
-			Stat stat = zookeeper.checkExists().forPath(path);
+			Stat stat = zookeeper.checkExists().forPath(fullpath);
 			if (stat == null) {
 				// node doesn't exist, create it
 				zookeeper.create()
 					.creatingParentsIfNeeded()
 					.forPath(path);
 			}
-			zookeeper.setData().forPath(path, serialize(obj));
+			zookeeper.setData().forPath(fullpath, serialize(obj));
 		} catch (Exception e) {
 			LOG.error("saveObject Exception: " + e);
 		}
 	}
 
 	public void deleteObject(String path) {
+		String fullpath = basePath + "/" + path;
 		try {
 			zookeeper.delete()
-				.forPath(path);
+				.forPath(fullpath);
 		} catch (Exception e) {
 			LOG.error("deleteObject Exception: " + e);
 		}
 	}
 
 	private void load() {
-		try {
-			parallelism = (Map<String, Integer>)
-				loadObject(basePath + "/parallelism");
-			oldParallelism = (Map<String, Integer>)
-				loadObject(basePath + "/oldParallelism");
-			oldThroughputs = (List<Double>)
-				loadObject(basePath + "/oldThroughputs");
-			history = (List<Set<String>>)
-				loadObject(basePath + "/history");
-		} catch (ClassCastException e) {
-			System.out.println("CLASS CAST EXCEPTION");
-			deleteObject(basePath + "/parallelism");
-			deleteObject(basePath + "/oldParallelism");
-			deleteObject(basePath + "/oldThroughputs");
-			deleteObject(basePath + "/history");
-			load();
-			return;
-		}
-
-		System.out.format("loaded parallelism: %s\n", parallelism);
-		System.out.format("loaded oldParallelism: %s\n", oldParallelism);
-		System.out.format("loaded oldThroughputs: %s\n", oldThroughputs);
-		System.out.format("loaded history: %s\n", history);
+		parallelism = (Map<String, Integer>)loadObject("parallelism");
+		algorithm.load();
 	}
 
 	// Save algorithm state to zookeeper
 	private void save() {
-		saveObject(basePath + "/parallelism", parallelism);
-		saveObject(basePath + "/oldParallelism", oldParallelism);
-		saveObject(basePath + "/oldThroughputs", oldThroughputs);
-		saveObject(basePath + "/history", history);
+		saveObject("parallelism", parallelism);
+		algorithm.save();
 	}
 
-	protected double mean(List<Double> a) {
+	public double mean(List<Double> a) {
 		double sum = 0;
 		for (Double val : a) {
 			sum += val;
@@ -199,7 +180,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > pvalue
-	protected boolean significantIncrease(List<Double> a, List<Double> b, double pvalue) {
+	public boolean significantIncrease(List<Double> a, List<Double> b, double pvalue) {
 		double meanA = mean(a);
 		double sd = 0;
 		for (Double val : a) {
@@ -227,6 +208,10 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			updateCounter = -5;
 		}
 
+		if (throughput == 0) {
+			updateCounter = -5;
+		}
+
 		LOG.info("updateCounter = " + updateCounter);
 
 		if (updateCounter > 15) {
@@ -249,7 +234,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 				newThroughputs = new ArrayList<Double>(newThroughputs.subList(n-10, n));
 				LOG.info("Final Throughputs: " + newThroughputs);
 				printStatistics(statistics);
-				runAlgorithm(statistics);
+				algorithm.run(statistics);
 
 				newThroughputs = new ArrayList<Double>();
 				updateCounter = 0;
@@ -257,59 +242,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
-<<<<<<< HEAD
-=======
-	private void applyNextAction(Map<String, ComponentStatistics> statistics) {
-		if (history == null) {
-			history = new ArrayList<Set<String>>();
-		}
 
-		// find the first action that isn't in the history
-		Set<String> action = null;
-		List<Set<String>> actions = run(statistics);
-		for (int i=0; i<actions.size(); i++) {
-			if (!history.contains(actions.get(i))) {
-				action = actions.get(i);
-				break;
-			}
-		}
-
-		if (action != null) {
-			history.add(action);
-			oldThroughputs = newThroughputs;
-			oldParallelism = new HashMap<String, Integer>(parallelism);
-			System.out.println(parallelism);
-			for (String component : action) {
-				int p = oldParallelism.get(component);
-				parallelism.put(component, p + 1);
-			}
-			save();
-			rebalance();
-		}
-
-		Map<String, Integer> newAssignment = runGA(statistics);
-		if (newAssignment != null) {
-			//history.add(action);
-			oldThroughputs = newThroughputs;
-			oldParallelism = new HashMap<String, Integer>(parallelism);
-			System.out.println("OLD PARALLELISM: " + parallelism);
-			parallelism = newAssignment;
-			System.out.println("NEW GA PARALLELISM: " + parallelism);
-			save();
-			rebalance();
-		}
-
-	}
-
-	private void revertAction() {
-		parallelism = oldParallelism;
-		oldParallelism = null;
-		oldThroughputs = null;
-		save();
-		rebalance();
-	}
-
->>>>>>> 966a3ea2ffaa9638618aaea0a7c1766632898f42
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
@@ -344,7 +277,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
-	protected String topologyStatus() {
+	public String topologyStatus() {
 		try {
 			if (localCluster != null) {
 				return localCluster.getTopologyInfo(
@@ -360,7 +293,21 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
-	protected void rebalance() {
+	public ClusterSummary getClusterInfo() {
+		try {
+			if (localCluster != null) {
+				return localCluster.getClusterInfo();
+			} else {
+				NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
+				return client.getClient().getClusterInfo();
+			}
+		} catch (Exception e) {
+			System.out.println("getClusterInfo() exception: " + e);
+			return null;
+		}
+	}
+
+	public void rebalance() {
 		save();
 
 		LOG.info("parallelism rebalance " + System.currentTimeMillis());
@@ -369,7 +316,6 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 
 		RebalanceOptions options = new RebalanceOptions();
-		options.set_wait_secs(15);
 		options.set_num_executors(parallelism);
 		try {
 			System.out.println("REBALANCING: " + parallelism);
@@ -380,21 +326,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 				client.getClient().rebalance(topologyName, options);
 			}
 		} catch (Exception e) {
-			System.out.println("EXCEPTION DETECTED!!!!!" + e.toString());
+			System.out.println("rebalance() exception: " + e.toString());
 		}
 	}
-
-<<<<<<< HEAD
-	public abstract void runAlgorithm(Map<String, ComponentStatistics> statistics);
-=======
-	protected abstract List<Set<String>> run(Map<String, ComponentStatistics> statistics);
-
-	// TODO This will only be implemented for the Global State Optimizing Algorithm
-	// Output: Map from Component name --> New parallelism Hint figures
-
-	public Map<String, Integer> runGA(Map<String, ComponentStatistics> stats) {
-		return null;
-	}
-
->>>>>>> 966a3ea2ffaa9638618aaea0a7c1766632898f42
 }

@@ -54,11 +54,11 @@ public class CombinatorialAlgorithm extends IterativeFeedbackAlgorithm {
 		this.ranker = ranker;
 	}
 
-	public List<Set<String>> run(Map<String, ComponentStatistics> statistics) {
+	public List<Set<String>> getActions(Map<String, ComponentStatistics> statistics) {
 		List<String> ranking = ranker.rankComponents(
-			topologyContext,
+			state.topologyContext,
 			statistics,
-			parallelism);
+			state.parallelism);
 
 		// truncate list to reduce possible combinations
 		int k = Math.min(3, ranking.size());
