@@ -45,7 +45,7 @@ import backtype.storm.utils.BufferFileInputStream;
 import backtype.storm.utils.Utils;
 import backtype.storm.utils.NimbusClient;
 
-public class RoundRobin extends BaseFeedbackAlgorithm {
+public class RoundRobin extends IterativeFeedbackAlgorithm {
 	public List<Set<String>> run(Map<String, ComponentStatistics> statistics) {
 		List<Set<String>> result = new ArrayList<Set<String>>();
 		for (String component : topologyContext.getComponentIds()) {

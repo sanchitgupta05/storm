@@ -41,23 +41,23 @@ public class AutoBolt extends BaseRichBolt {
 	public List<String> parents;
 
 	private int work;
-	private int io;
+	private int rate;
 	private Random rn;
 
 	private OutputCollector collector;
 	private Map<MessageId, List<Tuple>> seen;
 
-	public AutoBolt(String name, int work, int io) {
+	public AutoBolt(String name, int work, int rate) {
 		this.name = name;
 		this.parents = new ArrayList<String>();
 
 		this.work = work;
-		this.io = io;
+		this.rate = rate;
 		this.rn = new Random();
 	}
 
-	public static AutoBolt create(String name, int work, int io) {
-		return new AutoBolt(name, work, io);
+	public static AutoBolt create(String name, int work, int rate) {
+		return new AutoBolt(name, work, rate);
 	}
 
 	public AutoBolt addParent(String name) {
@@ -79,29 +79,9 @@ public class AutoBolt extends BaseRichBolt {
 				MessageDigest md = MessageDigest.getInstance("SHA-256");
 				md.update((new BigInteger(1024, rn)).toString(2).getBytes());
 				byte byteData[] = md.digest();
-
 				if (work <= 0 || rn.nextInt(work) == 0) {
 					break;
 				}
-
-				// // count the number of leading zeros
-				// int count = 0;
-				// for (byte b : byteData) {
-				// 	boolean breaking = false;
-				// 	for (int i=0; i<8; i++) {
-				// 		if (((b >> i) & 1) == 1) {
-				// 			breaking = true;
-				// 			break;
-				// 		}
-				// 		count++;
-				// 	}
-				// 	if (breaking)
-				// 		break;
-				// }
-
-				// if (count >= work) {
-				// 	break;
-				// }
 			} catch (Exception e) {
 				System.out.println("exception caught " + e);
 				break;
@@ -117,14 +97,26 @@ public class AutoBolt extends BaseRichBolt {
 
 		// System.out.format("%s received, %d total\n", name, seen.get(id).size());
 
-		if (seen.get(id).size() >= parents.size()) {
+		int numFinished = 0;
+		for (Tuple t : seen.get(id)) {
+			if (t.getString(0).equals("fin")) {
+				numFinished += 1;
+			}
+		}
+
+		if (numFinished >= parents.size()) {
 			for (Tuple t : seen.get(id)) {
 				collector.ack(t);
 			}
 			seen.remove(id);
 
-			String data = (new BigInteger(io, rn)).toString(2);
-			collector.emit(new Values(data));
+			// System.out.println(name + " sending");
+
+			for (int i=0; i<rate; i++) {
+				String data = (new BigInteger(10, rn)).toString(2);
+				collector.emit(new Values(data));
+			}
+			collector.emit(new Values("fin"));
 		}
 	}
 

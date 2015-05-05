@@ -108,6 +108,11 @@ public class ComponentStatistics {
 			ackCount += ackCounts.get("default");
 		}
 
+		Map<String, Long> emitCountMap = (Map<String, Long>)dpMap.get("__emit-count");
+		if (emitCountMap != null && emitCountMap.containsKey("default")) {
+			emitCount += emitCountMap.get("default");
+		}
+
 		Map<String, Double> completeLatencies = (Map<String, Double>)dpMap.get("__complete-latency");
 		if (completeLatencies.containsKey("default")) {
 			completeLatency += completeLatencies.get("default");
@@ -134,8 +139,10 @@ public class ComponentStatistics {
 		sendQueueLength /= windowSize;
 
 		// Add some special metrics
-		receiveLatency = receiveQueueLength * (1000 / executeCount);
-		sendLatency = sendQueueLength * (1000 / emitCount);
+		if (executeCount > 0)
+			receiveLatency = receiveQueueLength * (1000 / executeCount);
+		if (emitCount > 0)
+			sendLatency = sendQueueLength * (1000 / emitCount);
 
 		// Figure out the total output rate of all the tasks combined
 		long minRead = -1;

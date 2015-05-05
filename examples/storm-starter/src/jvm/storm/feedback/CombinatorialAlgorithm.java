@@ -47,7 +47,7 @@ import backtype.storm.utils.NimbusClient;
 
 import storm.feedback.ranking.IRanker;
 
-public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
+public class CombinatorialAlgorithm extends IterativeFeedbackAlgorithm {
 	private IRanker ranker;
 
 	public CombinatorialAlgorithm(IRanker ranker) {

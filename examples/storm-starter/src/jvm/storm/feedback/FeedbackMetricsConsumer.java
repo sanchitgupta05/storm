@@ -156,6 +156,13 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			dp.put(p.name, p.value);
 		}
 
+		// System.out.println(_context.getTaskToComponent().get(taskId)
+		// 				   + "=> " + dataPoints);
+
+		// if (taskId == -1) {
+		// 	System.out.println(counter);
+		// }
+
 		// When the min counter increases, report new statistics
 		int minCounter = minComponentCounter();
 		if (minCounter > lastMinCounter && minCounter > windowSize) {
@@ -204,6 +211,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		// TODO: select algorithm based on stormConf
 		// IFeedbackAlgorithm algorithm = new RoundRobin();
 		IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+		// IFeedbackAlgorithm algorithm = new GeneticAlgorithm();
 		algorithm.initialize(name, stormConf, context, parallelism);
 		return algorithm;
 	}
@@ -228,6 +236,9 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		arg.put("name", name);
 		arg.put("parallelism", getParallelism(topology));
 		conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, arg, 1);
+		conf.setStatsSampleRate(1);
+		conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
+		conf.setMaxSpoutPending(8);
 	}
 
 	public static void register(Config conf, String name, StormTopology topology,

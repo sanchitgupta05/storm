@@ -57,16 +57,16 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 
 	// These are stored in zookeeper
 	protected Map<String, Integer> parallelism;
-	private Map<String, Integer> oldParallelism;
-	private List<Double> oldThroughputs;
-	private List<Set<String>> history;
+	protected Map<String, Integer> oldParallelism;
+	protected List<Double> oldThroughputs;
+	protected List<Set<String>> history;
 
 	protected Map stormConf;
 	protected TopologyContext topologyContext;
 	private String topologyName;
 	private Map<String, Integer> startingParallelism;
 
-	private List<Double> newThroughputs;
+	protected List<Double> newThroughputs;
 	private int updateCounter;
 
 	@Override
@@ -187,7 +187,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		saveObject(basePath + "/history", history);
 	}
 
-	private double mean(List<Double> a) {
+	protected double mean(List<Double> a) {
 		double sum = 0;
 		for (Double val : a) {
 			sum += val;
@@ -196,7 +196,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	// Model "a" with a normal distribution, and test whether cdf(mean(b)) > pvalue
-	private boolean significantIncrease(List<Double> a, List<Double> b, double pvalue) {
+	protected boolean significantIncrease(List<Double> a, List<Double> b, double pvalue) {
 		double meanA = mean(a);
 		double sd = 0;
 		for (Double val : a) {
@@ -214,18 +214,13 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		return significant;
 	}
 
-	protected boolean throughputIncreased() {
-		return oldThroughputs == null
-			|| significantIncrease(oldThroughputs, newThroughputs, 0.90);
-	}
-
 	public void update(double throughput, Map<String, ComponentStatistics> statistics) {
 		String status = topologyStatus();
 		LOG.info("Throughput: " + throughput);
 		LOG.info("Topology Status: " + status);
 
 		// wait sufficiently after rebalancing to run the algorithm again
-		if (status.equals("REBALANCING")) {
+		if (status != null && status.equals("REBALANCING")) {
 			updateCounter = -5;
 		}
 
@@ -249,65 +244,14 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			if (stable) {
 				// truncate the newThroughputs
 				newThroughputs = new ArrayList<Double>(newThroughputs.subList(n-10, n));
-
 				LOG.info("Final Throughputs: " + newThroughputs);
 				printStatistics(statistics);
-
-				boolean reverted = (history != null && oldParallelism == null);
-				if (reverted) {
-					// last action failed, try another
-					applyNextAction(statistics);
-				} else {
-					if (throughputIncreased()) {
-						// successfully applied action, clear the history
-						history = null;
-						applyNextAction(statistics);
-					} else {
-						revertAction();
-					}
-				}
+				runAlgorithm(statistics);
 
 				newThroughputs = new ArrayList<Double>();
 				updateCounter = 0;
 			}
 		}
-	}
-
-	private void applyNextAction(Map<String, ComponentStatistics> statistics) {
-		if (history == null) {
-			history = new ArrayList<Set<String>>();
-		}
-
-		// find the first action that isn't in the history
-		Set<String> action = null;
-		List<Set<String>> actions = run(statistics);
-		for (int i=0; i<actions.size(); i++) {
-			if (!history.contains(actions.get(i))) {
-				action = actions.get(i);
-				break;
-			}
-		}
-
-		if (action != null) {
-			history.add(action);
-			oldThroughputs = newThroughputs;
-			oldParallelism = new HashMap<String, Integer>(parallelism);
-			System.out.println(parallelism);
-			for (String component : action) {
-				int p = oldParallelism.get(component);
-				parallelism.put(component, p + 1);
-			}
-			save();
-			rebalance();
-		}
-	}
-
-	private void revertAction() {
-		parallelism = oldParallelism;
-		oldParallelism = null;
-		oldThroughputs = null;
-		save();
-		rebalance();
 	}
 
 	public void printStatistics(Map<String, ComponentStatistics> statistics) {
@@ -361,6 +305,8 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	protected void rebalance() {
+		save();
+
 		LOG.info("parallelism rebalance " + System.currentTimeMillis());
 		for (String component : parallelism.keySet()) {
 			LOG.info("parallelism " + component + " " + parallelism.get(component));
@@ -382,5 +328,5 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
-	protected abstract List<Set<String>> run(Map<String, ComponentStatistics> statistics);
+	public abstract void runAlgorithm(Map<String, ComponentStatistics> statistics);
 }

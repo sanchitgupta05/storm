@@ -108,8 +108,8 @@ public class WordCountTopology {
 	// int numTasks = 5;
 
     // builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
-    // builder.setBolt("split", new SplitSentence(), 1).setNumTasks(numTasks).shuffleGrouping("spout");
-    // builder.setBolt("count", new WordCount(), 1).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
+    // builder.setBolt("split", new SplitSentence(), 5).setNumTasks(numTasks).shuffleGrouping("spout");
+    // builder.setBolt("count", new WordCount(), 3).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
 
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
 
@@ -130,20 +130,16 @@ public class WordCountTopology {
 	// builder.addBolt(AutoBolt.create("d", 150, 10)
 	// 				.addParent("c"), 1);
 
-	builder.addSpout(AutoSpout.create("a", 10));
-	builder.addBolt(AutoBolt.create("b", 1, 1000)
-					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("c", 1, 1000)
-					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("d", 1, 1000)
-					.addParent("c"), 1);
+	builder.addSpout(AutoSpout.create("a"));
+	builder.addBolt(AutoBolt.create("b", 10, 1)
+					.addParent("a"), 3);
+	builder.addBolt(AutoBolt.create("c", 10, 50)
+					.addParent("a"), 3);
+	builder.addBolt(AutoBolt.create("d", 1, 1)
+					.addParent("c"), 5);
 
     Config conf = new Config();
-	conf.setStatsSampleRate(1);
-	conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-	conf.setNumAckers(1);
-	conf.setMaxTaskParallelism(10);
-	conf.setMaxSpoutPending(8);
+	conf.setNumAckers(3);
 
 	StormTopology topology = builder.createTopology();
     if (args != null && args.length > 0) {
