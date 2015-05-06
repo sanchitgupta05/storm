@@ -29,6 +29,9 @@ import backtype.storm.generated.StormTopology;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+
 
 /**
  * This topology demonstrates Storm's stream groupings and multilang capabilities.
@@ -40,7 +43,7 @@ public class StarTopology {
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
 	
 	/*Star Topology construction*/
-	List<String> spouts = new ArrayList<String>;
+	List<String> spouts = new ArrayList<String>();
 	for(int i = 0; i < 3; i++) {
 		String spoutName = "spout_"+String.valueOf(i);
 		builder.addSpout(AutoSpout.create(spoutName, 100));
