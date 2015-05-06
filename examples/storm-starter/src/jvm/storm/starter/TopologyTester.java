@@ -50,7 +50,7 @@ import java.util.Map;
 /**
  * This topology demonstrates Storm's stream groupings and multilang capabilities.
  */
-public class WordCountTopology {
+public class TopologyTester {
   public static class SplitSentence extends BaseBasicBolt {
 	@Override
 	public void execute(Tuple tuple, BasicOutputCollector collector) {
@@ -86,8 +86,39 @@ public class WordCountTopology {
     }
   }
 
+  private static StormTopology createWordCount() {
+    TopologyBuilder builder = new TopologyBuilder();
+	int numTasks = 10;
+    builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
+    builder.setBolt("split", new SplitSentence(), 1).setNumTasks(numTasks).shuffleGrouping("spout");
+    builder.setBolt("count", new WordCount(), 1).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
+	return builder.createTopology();
+  }
+
   public static void main(String[] args) throws Exception {
-	IFeedbackAlgorithm algorithm = null;
+	Map<String, StormTopology> tops = new HashMap<String, StormTopology>();
+	tops.put("wordcount", createWordCount());
+
+	String topologyName = args[0];
+	String topologyType = args[1];
+	String algorithm = args[2];
+	int iterations = Integer.parseInt(args[3]);
+
+	StormTopology topology = tops.get(topologyType);
+	if (topology == null) {
+	  System.out.format("Topology type %s not found\n", topologyType);
+	  System.exit(1);
+	}
+
+    Config conf = new Config();
+	conf.setNumAckers(3);
+	conf.put("FEEDBACK_ALGORITHM", algorithm);
+	conf.put("EMAIL_ITERATIONS", iterations);
+
+	FeedbackMetricsConsumer.register(conf, topologyName, topology);
+	StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, topology);
+
+	// IFeedbackAlgorithm algorithm = null;
 	// String arg = System.getProperty("feedback.algorithm", null);
 	// if (arg == null) {
 	//   System.out.println("No Algorithm Given");
@@ -105,23 +136,17 @@ public class WordCountTopology {
 	//   System.exit(1);
 	// }
 
-    // TopologyBuilder builder = new TopologyBuilder();
-	// int numTasks = 10;
 
-    // builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
-    // builder.setBolt("split", new SplitSentence(), 5).setNumTasks(numTasks).shuffleGrouping("spout");
-    // builder.setBolt("count", new WordCount(), 3).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
+	// AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
 
-	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
-
-	builder.addSpout(AutoSpout.create("a"));
-	builder.addBolt(AutoBolt.create("b", 1, 1)
-					.addParent("a"));
-	builder.addBolt(AutoBolt.create("c", 1, 1)
-					.addParent("a"));
-	builder.addBolt(AutoBolt.create("d", 0, 1)
-					.addParent("b")
-					.addParent("c"));
+	// builder.addSpout(AutoSpout.create("a"));
+	// builder.addBolt(AutoBolt.create("b", 1, 1)
+	// 				.addParent("a"));
+	// builder.addBolt(AutoBolt.create("c", 1, 1)
+	// 				.addParent("a"));
+	// builder.addBolt(AutoBolt.create("d", 0, 1)
+	// 				.addParent("b")
+	// 				.addParent("c"));
 
 	// builder.addSpout(AutoSpout.create("a", 10));
 	// builder.addBolt(AutoBolt.create("b", 200, 10)
@@ -141,12 +166,12 @@ public class WordCountTopology {
 	// builder.addBolt(AutoBolt.create("e", 1, 1)
 	// 				.addParent("c"), 2);
 
-    Config conf = new Config();
-	conf.setNumAckers(3);
+    // Config conf = new Config();
+	// conf.setNumAckers(3);
 
-	TopologyQueue queue = new TopologyQueue();
-	queue.add("test", builder.createTopology(), conf);
-	queue.run();
+	// TopologyQueue queue = new TopologyQueue();
+	// queue.add("test", builder.createTopology(), conf);
+	// queue.run();
 
 	// StormTopology topology = builder.createTopology();
     // if (args != null && args.length > 0) {

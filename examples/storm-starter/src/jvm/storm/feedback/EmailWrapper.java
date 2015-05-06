@@ -95,13 +95,14 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		log("throughput", state.newThroughput);
 		log("throughputs", state.newThroughputs);
 
-		algorithm.run(statistics);
+		if (emailLog.size() <= k) {
+			algorithm.run(statistics);
+		}
 
-		System.out.println(getContent());
-
-		if (emailLog.size() == k) {
+		if (emailLog.size() == k+1) {
 			try {
 				sendEmail();
+				state.deactivate();
 			} catch (Exception e) {
 				System.out.println("sendEmail() exception: " + e);
 			}

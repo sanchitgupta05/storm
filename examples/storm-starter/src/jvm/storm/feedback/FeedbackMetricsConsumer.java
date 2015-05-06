@@ -238,6 +238,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 	}
 
 	private IFeedbackAlgorithm createAlgorithm(Map stormConf) {
+		IFeedbackAlgorithm algorithm = null;
 		// TODO: select algorithm based on stormConf
 		// return new RoundRobin();
 		// IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
@@ -245,8 +246,25 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(3, new CombinatorialAlgorithm(new CongestionRanker()));
 		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(4, null);
-		IFeedbackAlgorithm algorithm = new TrainedAlgorithm(8);
-		return new EmailWrapper(10, algorithm);
+
+		String type = (String)stormConf.get("FEEDBACK_ALGORITHM");
+		if (type == "trained") {
+			algorithm = new TrainedAlgorithm(3);
+		}
+		if (type == "iterative") {
+			algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+		}
+
+		if (algorithm == null) {
+			algorithm = new RoundRobin();
+		}
+
+		Long iterations = (Long)stormConf.get("EMAIL_ITERATIONS");
+		if (iterations == null) {
+			return algorithm;
+		} else {
+			return new EmailWrapper(iterations.intValue(), algorithm);
+		}
 	}
 	private AlgorithmState createAlgorithmState(Map stormConf, TopologyContext context, Object arg) {
 		Map argDict = (Map)arg;

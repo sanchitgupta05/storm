@@ -47,7 +47,6 @@ import backtype.storm.generated.*;
 import backtype.storm.utils.Utils;
 import backtype.storm.utils.ZookeeperAuthInfo;
 import backtype.storm.utils.NimbusClient;
-
 public class AlgorithmState {
 	public static final Logger LOG = LoggerFactory.getLogger(AlgorithmState.class);
 
@@ -194,6 +193,10 @@ public class AlgorithmState {
 			sd += (val - meanA) * (val - meanA);
 		}
 		sd = Math.sqrt(sd / (a.size() - 1));
+
+		if (sd <= 0) {
+			return true;
+		}
 
 		double meanB = mean(b);
 		NormalDistribution dist = new NormalDistribution(meanA, sd);
@@ -343,6 +346,7 @@ public class AlgorithmState {
 			}
 		} catch (Exception e) {
 			System.out.println("deactivate() exception: " + e);
+			throw new RuntimeException("deactivate() exception: " + e);
 		}
 	}
 
