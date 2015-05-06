@@ -33,17 +33,15 @@ public class AutoSpout extends BaseRichSpout {
 	public String name;
 
 	private SpoutOutputCollector collector;
-	private int io;
 	private Random rn;
 
-	public AutoSpout(String name, int io) {
+	public AutoSpout(String name) {
 		this.name = name;
-		this.io = io;
 		this.rn = new Random();
 	}
 
-	public static AutoSpout create(String name, int io) {
-		return new AutoSpout(name, io);
+	public static AutoSpout create(String name) {
+		return new AutoSpout(name);
 	}
 
 	@Override
@@ -53,8 +51,7 @@ public class AutoSpout extends BaseRichSpout {
 
 	@Override
 	public void nextTuple() {
-		String data = (new BigInteger(io, rn)).toString(2);
-		collector.emit(new Values(data), rn.nextDouble());
+		collector.emit(new Values("fin"), rn.nextDouble());
 	}
 
 	@Override

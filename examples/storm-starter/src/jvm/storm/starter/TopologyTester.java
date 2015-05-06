@@ -49,7 +49,7 @@ import java.util.Map;
 /**
  * This topology demonstrates Storm's stream groupings and multilang capabilities.
  */
-public class WordCountTopology {
+public class TopologyTester {
   public static class SplitSentence extends BaseBasicBolt {
 	@Override
 	public void execute(Tuple tuple, BasicOutputCollector collector) {
@@ -85,34 +85,20 @@ public class WordCountTopology {
     }
   }
 
-  public static void main(String[] args) throws Exception {
-	IFeedbackAlgorithm algorithm = null;
-	// String arg = System.getProperty("feedback.algorithm", null);
-	// if (arg == null) {
-	//   System.out.println("No Algorithm Given");
-	//   System.exit(1);
-	// }
+  private static StormTopology createWordCount() {
+    TopologyBuilder builder = new TopologyBuilder();
+	int numTasks = 10;
+    builder.setSpout("spout", new RandomSentenceSpout(), 1)
+	  .setNumTasks(numTasks);
+    builder.setBolt("split", new SplitSentence(), 1)
+	  .setNumTasks(numTasks).shuffleGrouping("spout");
+    builder.setBolt("count", new WordCount(), 1)
+	  .setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
+	return builder.createTopology();
+  }
 
-	// if (arg.equals("1")) {
-	//   algorithm = new RoundRobin();
-	// } else if (arg.equals("2")) {
-	//   algorithm = new CombinatorialAlgorithm();
-	// } else if (arg.equals("3")) {
-	//   algorithm = new CombinatorialAlgorithm2();
-	// } else {
-	//   System.out.println("Invalid Algorithm: " + arg);
-	//   System.exit(1);
-	// }
-
-    // TopologyBuilder builder = new TopologyBuilder();
-	// int numTasks = 10;
-
-    // builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
-    // builder.setBolt("split", new SplitSentence(), 5).setNumTasks(numTasks).shuffleGrouping("spout");
-    // builder.setBolt("count", new WordCount(), 3).setNumTasks(numTasks).fieldsGrouping("split", new Fields("word"));
-
-	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
-
+  private static StormTopology createCustom0() {
+	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
 	builder.addSpout(AutoSpout.create("a"));
 	builder.addBolt(AutoBolt.create("b", 1, 1)
 					.addParent("a"));
@@ -121,59 +107,32 @@ public class WordCountTopology {
 	builder.addBolt(AutoBolt.create("d", 0, 1)
 					.addParent("b")
 					.addParent("c"));
+	return builder.createTopology();
+  }
 
-	// builder.addSpout(AutoSpout.create("a", 10));
-	// builder.addBolt(AutoBolt.create("b", 200, 10)
-	// 				.addParent("a"), 1);
-	// builder.addBolt(AutoBolt.create("c", 150, 10)
-	// 				.addParent("a"), 1);
-	// builder.addBolt(AutoBolt.create("d", 150, 10)
-	// 				.addParent("c"), 1);
+  public static void main(String[] args) throws Exception {
+	Map<String, StormTopology> tops = new HashMap<String, StormTopology>();
+	tops.put("wordcount", createWordCount());
+	tops.put("custom0", createCustom0());
 
-<<<<<<< HEAD
-	builder.addSpout(AutoSpout.create("a", 10));
-	builder.addBolt(AutoBolt.create("b", 2, 1000)
-					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("c", 1, 1000)
-					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("d", 2, 1000)
-					.addParent("c"), 1);
-=======
-	// builder.addSpout(AutoSpout.create("a"));
-	// builder.addBolt(AutoBolt.create("b", 10, 1)
-	// 				.addParent("a"), 2);
-	// builder.addBolt(AutoBolt.create("c", 10, 50)
-	// 				.addParent("a"), 4);
-	// builder.addBolt(AutoBolt.create("d", 1, 1)
-	// 				.addParent("c"), 1);
-	// builder.addBolt(AutoBolt.create("e", 1, 1)
-	// 				.addParent("c"), 2);
+	String topologyName = args[0];
+	String topologyType = args[1];
+	String algorithm = args[2];
+	int iterations = Integer.parseInt(args[3]);
 
->>>>>>> 58a3d54eb13d7662932ea18ebffd9aab604f915f
+	StormTopology topology = tops.get(topologyType);
+	if (topology == null) {
+	  System.out.format("Topology type %s not found\n", topologyType);
+	  System.exit(1);
+	}
 
     Config conf = new Config();
 	conf.setNumAckers(3);
-	// conf.put("FEEDBACK_ALGORITHM", algorithm);
-	// conf.put("EMAIL_ITERATIONS", iterations);
+	conf.put("FEEDBACK_ALGORITHM", algorithm);
+	conf.put("EMAIL_ITERATIONS", iterations);
+	conf.setNumWorkers(6);
 
-	StormTopology topology = builder.createTopology();
-    if (args != null && args.length > 0) {
-	  conf.setNumWorkers(6);
-
-	  String topologyName = args[0];
-	  FeedbackMetricsConsumer.register(conf, topologyName, topology);
-      StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, builder.createTopology());
-    }
-    else {
-	  LocalCluster cluster = new LocalCluster();
-	  String topologyName = "word-count";
-	  FeedbackMetricsConsumer.register(conf, topologyName, topology, cluster);
-      cluster.submitTopology(topologyName, conf, topology);
-
-	  while(1<2)
-		  Thread.sleep(60 * 1000);
-
-      // cluster.shutdown();
-    }
+	FeedbackMetricsConsumer.register(conf, topologyName, topology);
+	StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, topology);
   }
 }

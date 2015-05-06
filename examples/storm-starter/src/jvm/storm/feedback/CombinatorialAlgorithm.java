@@ -47,19 +47,18 @@ import backtype.storm.utils.NimbusClient;
 
 import storm.feedback.ranking.IRanker;
 
-public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
-
+public class CombinatorialAlgorithm extends IterativeFeedbackAlgorithm {
 	private IRanker ranker;
 
 	public CombinatorialAlgorithm(IRanker ranker) {
 		this.ranker = ranker;
 	}
 
-	public List<Set<String>> run(Map<String, ComponentStatistics> statistics) {
+	public List<Set<String>> getActions(Map<String, ComponentStatistics> statistics) {
 		List<String> ranking = ranker.rankComponents(
-			topologyContext,
+			state.topologyContext,
 			statistics,
-			parallelism);
+			state.parallelism);
 
 		// truncate list to reduce possible combinations
 		int k = Math.min(3, ranking.size());
@@ -126,4 +125,3 @@ public class CombinatorialAlgorithm extends BaseFeedbackAlgorithm {
 		}
 	}
 }
-

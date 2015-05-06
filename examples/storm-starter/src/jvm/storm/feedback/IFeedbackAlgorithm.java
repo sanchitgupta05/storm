@@ -26,7 +26,8 @@ import backtype.storm.task.TopologyContext;
 import java.util.Map;
 
 public interface IFeedbackAlgorithm {
-	void initialize(String topologyName, Map stormConf,
-					TopologyContext context, Map<String, Integer> parallelism, StormTopology topology);
-	void update(double throughput, Map<String, ComponentStatistics> statistics);
+	void setState(AlgorithmState state);
+	void load();
+	void save();
+	void run(Map<String, ComponentStatistics> statistics);
 }

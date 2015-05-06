@@ -17,12 +17,14 @@
  */
 package storm.feedback;
 
+import java.io.Serializable;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 
-public class ComponentStatistics {
+public class ComponentStatistics implements Serializable {
 	public long counter;
 	public boolean isSpout;
 
@@ -42,7 +44,6 @@ public class ComponentStatistics {
 	public double receiveLatency;
 	public double sendLatency;
 
-	
 	public double outputRate;
 
 	public ComponentStatistics() {
@@ -141,8 +142,10 @@ public class ComponentStatistics {
 		sendQueueLength /= windowSize;
 
 		// Add some special metrics
-		receiveLatency = receiveQueueLength * (1000 / executeCount);
-		sendLatency = sendQueueLength * (1000 / emitCount);
+		if (executeCount > 0)
+			receiveLatency = receiveQueueLength * (1000 / executeCount);
+		if (emitCount > 0)
+			sendLatency = sendQueueLength * (1000 / emitCount);
 
 		// Figure out the total output rate of all the tasks combined
 		long minRead = -1;
