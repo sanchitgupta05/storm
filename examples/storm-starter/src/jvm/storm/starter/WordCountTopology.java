@@ -131,11 +131,11 @@ public class WordCountTopology {
 	// 				.addParent("c"), 1);
 
 	builder.addSpout(AutoSpout.create("a", 10));
-	builder.addBolt(AutoBolt.create("b", 1, 1000)
+	builder.addBolt(AutoBolt.create("b", 2, 1000)
 					.addParent("a"), 1);
 	builder.addBolt(AutoBolt.create("c", 1, 1000)
 					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("d", 1, 1000)
+	builder.addBolt(AutoBolt.create("d", 2, 1000)
 					.addParent("c"), 1);
 
     Config conf = new Config();
