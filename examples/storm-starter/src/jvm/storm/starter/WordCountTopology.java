@@ -105,7 +105,7 @@ public class WordCountTopology {
 	// }
 
     // TopologyBuilder builder = new TopologyBuilder();
-	// int numTasks = 5;
+	// int numTasks = 10;
 
     // builder.setSpout("spout", new RandomSentenceSpout(), 1).setNumTasks(numTasks);
     // builder.setBolt("split", new SplitSentence(), 5).setNumTasks(numTasks).shuffleGrouping("spout");
@@ -113,14 +113,14 @@ public class WordCountTopology {
 
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
 
-	// builder.addSpout(AutoSpout.create("a", 10));
-	// builder.addBolt(AutoBolt.create("b", 100, 10)
-	// 				.addParent("a"));
-	// builder.addBolt(AutoBolt.create("c", 100, 10)
-	// 				.addParent("a"));
-	// builder.addBolt(AutoBolt.create("d", 0, 10)
-	// 				.addParent("b")
-	// 				.addParent("c"));
+	builder.addSpout(AutoSpout.create("a"));
+	builder.addBolt(AutoBolt.create("b", 1, 1)
+					.addParent("a"));
+	builder.addBolt(AutoBolt.create("c", 1, 1)
+					.addParent("a"));
+	builder.addBolt(AutoBolt.create("d", 0, 1)
+					.addParent("b")
+					.addParent("c"));
 
 	// builder.addSpout(AutoSpout.create("a", 10));
 	// builder.addBolt(AutoBolt.create("b", 200, 10)
@@ -130,22 +130,22 @@ public class WordCountTopology {
 	// builder.addBolt(AutoBolt.create("d", 150, 10)
 	// 				.addParent("c"), 1);
 
-	builder.addSpout(AutoSpout.create("a"));
-	builder.addBolt(AutoBolt.create("b", 10, 1)
-					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("c", 10, 50)
-					.addParent("a"), 1);
-	builder.addBolt(AutoBolt.create("d", 1, 1)
-					.addParent("c"), 1);
-	builder.addBolt(AutoBolt.create("e", 1, 1)
-					.addParent("c"), 1);
+	// builder.addSpout(AutoSpout.create("a"));
+	// builder.addBolt(AutoBolt.create("b", 10, 1)
+	// 				.addParent("a"), 2);
+	// builder.addBolt(AutoBolt.create("c", 10, 50)
+	// 				.addParent("a"), 4);
+	// builder.addBolt(AutoBolt.create("d", 1, 1)
+	// 				.addParent("c"), 1);
+	// builder.addBolt(AutoBolt.create("e", 1, 1)
+	// 				.addParent("c"), 2);
 
     Config conf = new Config();
 	conf.setNumAckers(3);
 
 	StormTopology topology = builder.createTopology();
     if (args != null && args.length > 0) {
-	  conf.setNumWorkers(4);
+	  conf.setNumWorkers(6);
 
 	  String topologyName = args[0];
 	  FeedbackMetricsConsumer.register(conf, topologyName, topology);

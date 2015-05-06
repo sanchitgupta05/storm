@@ -17,12 +17,14 @@
  */
 package storm.feedback;
 
+import java.io.Serializable;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 
-public class ComponentStatistics {
+public class ComponentStatistics implements Serializable {
 	public long counter;
 	public boolean isSpout;
 
@@ -42,7 +44,6 @@ public class ComponentStatistics {
 	public double receiveLatency;
 	public double sendLatency;
 
-	
 	public double outputRate;
 
 	public ComponentStatistics() {

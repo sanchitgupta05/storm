@@ -111,20 +111,24 @@ public class ThroughputModel {
 
 		double maxLatency = 0;
 		List<Double> latencies = new ArrayList<Double>();
+		List<Integer> counts = new ArrayList<Integer>();
 		for (int i=0; i<numWorkers; i++) {
 			latencies.add(0.0);
+			counts.add(0);
 		}
 		for (String component : components) {
 			ComponentStatistics stats = statistics.get(component);
 			double executeRate = stats.executeCount / spoutEmitCount;
 			int p = parallelism.get(component);
 			for (int i=0; i<p; i++) {
-				addToMin(latencies, executeRate * stats.executeLatency / p);
+				addToMin(latencies, counts, executeRate * stats.executeLatency / p);
 			}
 		}
 		for (int i=0; i<latencies.size(); i++) {
-			if (latencies.get(i) > maxLatency) {
-				maxLatency = latencies.get(i);
+			double latency = latencies.get(i);
+			latency *= (1 + penalty * counts.get(i));
+			if (latency > maxLatency) {
+				maxLatency = latency;
 			}
 		}
 		return 1000 / maxLatency * executorPenalty(
@@ -153,24 +157,26 @@ public class ThroughputModel {
 
 		double maxTupleRate = 0;
 		List<Double> tupleRates = new ArrayList<Double>();
+		List<Integer> counts = new ArrayList<Integer>();
 		for (int i=0; i<numWorkers; i++) {
 			tupleRates.add(0.0);
+			counts.add(0);
 		}
 		for (String component : components) {
 			ComponentStatistics stats = statistics.get(component);
 			double tupleRate = stats.emitCount / spoutEmitCount;
 			int p = parallelism.get(component);
 			for (int i=0; i<p; i++) {
-				addToMin(tupleRates, tupleRate / p);
+				addToMin(tupleRates, counts, tupleRate / p);
 			}
 		}
 		for (int i=0; i<tupleRates.size(); i++) {
-			if (tupleRates.get(i) > maxTupleRate) {
-				maxTupleRate = tupleRates.get(i);
+			double tupleRate = tupleRates.get(i);
+			tupleRate *= (1 + penalty * counts.get(i));
+			if (tupleRate > maxTupleRate) {
+				maxTupleRate = tupleRate;
 			}
 		}
-
-		System.out.println(tupleRates);
 
 		double capacity = getCapacity(context, statistics);
 		return capacity / maxTupleRate * executorPenalty(
@@ -193,7 +199,7 @@ public class ThroughputModel {
 		return (1 - penalty * Math.max(0, totalNumExecutors - numWorkers));
 	}
 
-	public static void addToMin(List<Double> list, double value) {
+	public static void addToMin(List<Double> list, List<Integer> counts, double value) {
 		int j = -1;
 		double min = Double.MAX_VALUE;
 		for (int i=0; i<list.size(); i++) {
@@ -202,7 +208,10 @@ public class ThroughputModel {
 				j = i;
 			}
 		}
-		list.set(j, list.get(j) + value);
+		if (j >= 0) {
+			list.set(j, list.get(j) + value);
+			counts.set(j, counts.get(j) + 1);
+		}
 	}
 
 }

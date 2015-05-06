@@ -88,11 +88,25 @@ public abstract class IterativeFeedbackAlgorithm implements IFeedbackAlgorithm {
 			history.add(action);
 			oldThroughputs = state.newThroughputs;
 			oldParallelism = new HashMap<String, Integer>(state.parallelism);
+
+			boolean valid = true;
 			for (String component : action) {
 				int p = oldParallelism.get(component);
+				int numTasks = state.topologyContext.getComponentTasks(
+					component).size();
 				state.parallelism.put(component, p + 1);
+				if (p + 1 > numTasks) {
+					valid = false;
+				}
 			}
-			state.rebalance();
+			if (valid) {
+				state.rebalance();
+			} else {
+				// didn't work, try again
+				state.parallelism = oldParallelism;
+				oldParallelism = null;
+				applyNextAction(statistics);
+			}
 		}
 	}
 

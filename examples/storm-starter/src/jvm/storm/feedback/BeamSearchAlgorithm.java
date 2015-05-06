@@ -33,19 +33,89 @@ import storm.feedback.ranking.CongestionRanker;
 
 public class BeamSearchAlgorithm implements IFeedbackAlgorithm {
 	private AlgorithmState state;
+	private List<Map<String, Integer>> parallelismHistory;
+	private List<Double> throughputHistory;
+
+	private int k;
+	private IFeedbackAlgorithm child;
+
+	public BeamSearchAlgorithm(int k, IFeedbackAlgorithm child) {
+		this.k = k;
+		this.child = child;
+	}
 
 	public void setState(AlgorithmState state) {
 		this.state = state;
+		if (child != null)
+			child.setState(state);
 	}
 
 	public void load() {
+		parallelismHistory = (List<Map<String, Integer>>) state.loadObject("parallelismHistory");
+		throughputHistory = (List<Double>) state.loadObject("throughputHistory");
+		if (child != null)
+			child.load();
 	}
 
 	public void save() {
+		state.saveObject("parallelismHistory", parallelismHistory);
+		state.saveObject("throughputHistory", throughputHistory);
+		if (child != null)
+			child.save();
 	}
 
 	public void run(Map<String, ComponentStatistics> statistics) {
-		List<Map<String, Integer>> combinations = new ArrayList<Map<String, Integer>>();
+		if (parallelismHistory == null) {
+			parallelismHistory = new ArrayList<Map<String, Integer>>();
+			throughputHistory = new ArrayList<Double>();
+		}
+
+		int i = throughputHistory.size();
+		if (i > k) {
+			// We've ran the algorithm completely. If there's a child, run that instead.
+			if (child != null) {
+				child.run(statistics);
+			}
+			return;
+		} else {
+			// Record new parallelism and throughput
+			parallelismHistory.add(state.parallelism);
+			throughputHistory.add(state.newThroughput);
+
+			Map<String, Integer> best = null;
+			if (i < k) {
+				// use beam search to find the best configuration
+				double a = Math.pow(1.25, 1.0 / k);
+				double penalty = Math.pow(a, i) - 1;
+				best = getBestConfiguration(statistics, penalty);
+			} else {
+				// look in the past at the best configurations
+				double maxThroughput = 0;
+				for (int j=0; j<throughputHistory.size(); j++) {
+					if (throughputHistory.get(j) > maxThroughput) {
+						maxThroughput = throughputHistory.get(j);
+						best = parallelismHistory.get(j);
+					}
+				}
+				parallelismHistory.add(best);
+				throughputHistory.add(maxThroughput);
+			}
+
+			if (!state.parallelism.equals(best)) {
+				// The parallelism is different, rebalance.
+				state.parallelism = best;
+				state.rebalance();
+			} else {
+				// We're already here, skip ahead
+				run(statistics);
+			}
+		}
+	}
+
+	private Map<String, Integer> getBestConfiguration(
+		Map<String, ComponentStatistics> statistics,
+		double penalty) {
+
 		List<String> components = new ArrayList<String>();
 		for (String component : state.topologyContext.getComponentIds()) {
 			if (!statistics.get(component).isSpout) {
@@ -56,14 +126,16 @@ public class BeamSearchAlgorithm implements IFeedbackAlgorithm {
 		int budget = 0;
 		int coresPerWorker = 4;
 		ClusterSummary summary = state.getClusterInfo();
+		for (SupervisorSummary supervisor : summary.get_supervisors()) {
+			System.out.println(supervisor);
+		}
 		for (TopologySummary topology : summary.get_topologies()) {
+			System.out.println(topology);
 			if (topology.get_id().equals(state.topologyContext.getStormId())) {
 				budget = coresPerWorker * topology.get_num_workers();
 				break;
 			}
 		}
-
-		double penalty = 0.01;
 
 		boolean isCpuBound = ThroughputModel.isCpuBound(
 			state.mean(state.newThroughputs),
@@ -73,39 +145,15 @@ public class BeamSearchAlgorithm implements IFeedbackAlgorithm {
 			budget,
 			penalty);
 
+		EmailWrapper.log("isCpuBound", isCpuBound);
+
 		if (isCpuBound) {
 			System.out.println("CPU BOUND");
 		} else {
 			System.out.println("IO BOUND");
 		}
 
-		Map<String, Integer> best = null;
-		double maxThroughput = 0;
-
-		// for (Map<String, Integer> candidate : combinations) {
-		// 	for (String component : topologyContext.getComponentIds()) {
-		// 		if (!candidate.containsKey(component)) {
-		// 			candidate.put(component, 1);
-		// 		}
-		// 	}
-
-		// 	double throughput = ThroughputModel.predict(
-		// 		isCpuBound,
-		// 		topologyContext,
-		// 		statistics,
-		// 		candidate,
-		// 		budget,
-		// 		penalty);
-
-		// 	if (throughput > maxThroughput) {
-		// 		maxThroughput = throughput;
-		// 		best = candidate;
-		// 	}
-		// 	System.out.format("%s => %f\n", candidate, throughput);
-		// }
-
 		IRanker ranker = new CongestionRanker();
-
 		Configuration bestConfiguration = null;
 
 		Map<String, Integer> start = initialState();
@@ -123,9 +171,9 @@ public class BeamSearchAlgorithm implements IFeedbackAlgorithm {
 			current = queue.poll();
 			membership.remove(current);
 
-			System.out.format("%s: %f\n",
-							  current.parallelism,
-							  current.throughput);
+			// System.out.format("%s: %f\n",
+			// 				  current.parallelism,
+			// 				  current.throughput);
 
 			if (bestConfiguration == null || current.compareTo(bestConfiguration) == -1) {
 				bestConfiguration = current;
@@ -154,17 +202,16 @@ public class BeamSearchAlgorithm implements IFeedbackAlgorithm {
 			}
 		}
 
-		System.out.println("bs throughput: " + bestConfiguration.throughput);
-		System.out.println("bs output: " + bestConfiguration.parallelism);
+		System.out.println("penalty: " + penalty);
+		System.out.println("best: " + bestConfiguration);
 
-		// System.out.println("best: " + best);
-		// System.out.println("maxThroughput: " + maxThroughput);
+		EmailWrapper.log("penalty", penalty);
+		EmailWrapper.log("bsBestParallelism", bestConfiguration.parallelism);
+		EmailWrapper.log("bsBestThroughput", bestConfiguration.throughput);
 
-		if (!state.parallelism.equals(bestConfiguration.parallelism)) {
-			state.parallelism = bestConfiguration.parallelism;
-			state.rebalance();
-		}
+		return bestConfiguration.parallelism;
 	}
+
 
 	private Map<String, Integer> initialState() {
 		Map<String, Integer> result = new HashMap<String, Integer>();
@@ -208,6 +255,10 @@ public class BeamSearchAlgorithm implements IFeedbackAlgorithm {
 			if (throughput == other.throughput)
 				return 0;
 			return (throughput > other.throughput ? -1 : 1);
+		}
+
+		public String toString() {
+			return String.format("Configuration(%s, %f)", parallelism, throughput);
 		}
 	}
 }

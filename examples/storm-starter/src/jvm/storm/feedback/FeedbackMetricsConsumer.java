@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.Math;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedList;
@@ -109,15 +110,54 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		return result;
 	}
 
-	// Get the total number of acks from all spout tasks
-	public long getTotalAcks(Map<String, ComponentStatistics> statistics) {
-		long totalAcks = 0;
-		for (ComponentStatistics stats : statistics.values()) {
-			if (stats.isSpout) {
-				totalAcks += stats.ackCount;
+	private double getTupleRate(String component, Map<String, ComponentStatistics> statistics) {
+		int count = 0;
+		double sum = 0;
+		for (GlobalStreamId id : _context.getSources(component).keySet()) {
+			String up = id.get_componentId();
+			sum += getTupleRate(up, statistics);
+			count++;
+		}
+		ComponentStatistics stats = statistics.get(component);
+		if (stats.isSpout) {
+			return 1;
+		}
+		else {
+			double parentRate = 1;
+			if (count > 0) {
+				parentRate = sum / count;
+			}
+			double localRate = 1;
+			if (stats.executeCount > 0) {
+				localRate = stats.emitCount / stats.executeCount;
+			}
+			return localRate * parentRate;
+		}
+	}
+
+	// Get the throughput of the topology by analyzing all components
+	public double getTotalAcks2(Map<String, ComponentStatistics> statistics) {
+		Set<String> components = _context.getComponentIds();
+		Map<String, Double> tupleRates = new HashMap<String, Double>();
+
+		int count = 0;
+		double sum = 0;
+		for (String component : components) {
+			double tupleRate = getTupleRate(component, statistics);
+			sum += statistics.get(component).emitCount / tupleRate;
+			count += 1;
+		}
+		return sum / count;
+	}
+
+	public double getTotalAcks(Map<String, ComponentStatistics> statistics) {
+		double result = 0;
+		for (String component : _context.getComponentIds()) {
+			if (statistics.get(component).isSpout) {
+				result += statistics.get(component).ackCount;
 			}
 		}
-		return totalAcks;
+		return result;
 	}
 
 	private int componentCounter(String component) {
@@ -199,12 +239,15 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 	private IFeedbackAlgorithm createAlgorithm(Map stormConf) {
 		// TODO: select algorithm based on stormConf
-		return new RoundRobin();
+		// return new RoundRobin();
 		// IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
 		// IFeedbackAlgorithm algorithm = new GAlgorithm(new CongestionRanker());
-		// return new BeamSearchAlgorithm();
-	}
 
+		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(3, new CombinatorialAlgorithm(new CongestionRanker()));
+		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(4, null);
+		IFeedbackAlgorithm algorithm = new TrainedAlgorithm(8);
+		return new EmailWrapper(10, algorithm);
+	}
 	private AlgorithmState createAlgorithmState(Map stormConf, TopologyContext context, Object arg) {
 		Map argDict = (Map)arg;
 		String name = (String)argDict.get("name");
@@ -243,7 +286,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, arg, 1);
 		conf.setStatsSampleRate(1);
 		conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-		conf.setMaxSpoutPending(8);
+		conf.setMaxSpoutPending(2);
 	}
 
 	public static void register(Config conf, String name, StormTopology topology,

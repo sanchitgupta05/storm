@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
@@ -60,16 +62,20 @@ public class AlgorithmState {
 
 	public Map stormConf;
 	public TopologyContext topologyContext;
-	private String topologyName;
+	public String topologyName;
 	private Map<String, Integer> startingParallelism;
 
 	public List<Double> newThroughputs;
+	public double newThroughput;
 	private int updateCounter;
 	private IFeedbackAlgorithm algorithm;
+
+	private Timer timer;
 
 	public AlgorithmState(IFeedbackAlgorithm algorithm) {
 		this.algorithm = algorithm;
 		algorithm.setState(this);
+		timer = new Timer();
 	}
 
 	public void initialize(String topologyName, Map stormConf,
@@ -81,6 +87,7 @@ public class AlgorithmState {
 		this.startingParallelism = startingParallelism;
 
 		newThroughputs = new ArrayList<Double>();
+		newThroughput = 0;
 		updateCounter = 0;
 
 		// load previous data from zookeeper
@@ -126,7 +133,7 @@ public class AlgorithmState {
 			System.out.format("Loaded %s: %s\n", path, result);
 			return result;
 		} catch (KeeperException.NoNodeException e) {
-			System.out.format("Loaded %s: %s\n", path, null);
+			System.out.format("Loaded %s: %s (no node)\n", path, null);
 			return null;
 		} catch (Exception e) {
 			LOG.error("loadObject Exception: " + e);
@@ -142,7 +149,7 @@ public class AlgorithmState {
 				// node doesn't exist, create it
 				zookeeper.create()
 					.creatingParentsIfNeeded()
-					.forPath(path);
+					.forPath(fullpath);
 			}
 			zookeeper.setData().forPath(fullpath, serialize(obj));
 		} catch (Exception e) {
@@ -208,8 +215,13 @@ public class AlgorithmState {
 			updateCounter = -5;
 		}
 
-		if (throughput == 0) {
-			updateCounter = -5;
+		if (status != null) {
+			if (status.equals("REBALANCING")) {
+				updateCounter = -5;
+			}
+			if (status.equals("INACTIVE")) {
+				updateCounter = -5;
+			}
 		}
 
 		LOG.info("updateCounter = " + updateCounter);
@@ -232,7 +244,8 @@ public class AlgorithmState {
 			if (stable) {
 				// truncate the newThroughputs
 				newThroughputs = new ArrayList<Double>(newThroughputs.subList(n-10, n));
-				LOG.info("Final Throughputs: " + newThroughputs);
+				newThroughput = mean(newThroughputs);
+				LOG.info("Final Throughput: " + newThroughput);
 				printStatistics(statistics);
 				algorithm.run(statistics);
 
@@ -307,8 +320,43 @@ public class AlgorithmState {
 		}
 	}
 
+	public void activate() {
+		try {
+			if (localCluster != null) {
+				localCluster.activate(topologyName);
+			} else {
+				NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
+				client.getClient().activate(topologyName);
+			}
+		} catch (Exception e) {
+			System.out.println("activate() exception: " + e);
+		}
+	}
+
+	public void deactivate() {
+		try {
+			if (localCluster != null) {
+				localCluster.deactivate(topologyName);
+			} else {
+				NimbusClient client = NimbusClient.getConfiguredClient(stormConf);
+				client.getClient().deactivate(topologyName);
+			}
+		} catch (Exception e) {
+			System.out.println("deactivate() exception: " + e);
+		}
+	}
+
 	public void rebalance() {
+		int rebalanceDelay = 20;
+		int activateDelay = 10;
+
 		save();
+
+		// prevent nimbus from getting confused
+		if (localCluster != null) {
+			deactivate();
+			timer.schedule(new ActivateTask(this), (rebalanceDelay + activateDelay) * 1000);
+		}
 
 		LOG.info("parallelism rebalance " + System.currentTimeMillis());
 		for (String component : parallelism.keySet()) {
@@ -317,6 +365,7 @@ public class AlgorithmState {
 
 		RebalanceOptions options = new RebalanceOptions();
 		options.set_num_executors(parallelism);
+		options.set_wait_secs(rebalanceDelay);
 		try {
 			System.out.println("REBALANCING: " + parallelism);
 			if (localCluster != null) {
@@ -327,6 +376,17 @@ public class AlgorithmState {
 			}
 		} catch (Exception e) {
 			System.out.println("rebalance() exception: " + e.toString());
+		}
+	}
+
+	class ActivateTask extends TimerTask {
+		AlgorithmState state;
+		public ActivateTask(AlgorithmState state) {
+			this.state = state;
+		}
+
+		public void run() {
+			state.activate();
 		}
 	}
 }

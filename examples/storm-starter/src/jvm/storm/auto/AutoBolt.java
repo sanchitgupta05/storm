@@ -74,17 +74,13 @@ public class AutoBolt extends BaseRichBolt {
 	@Override
 	public void execute(Tuple tuple) {
 		// proof of work
-		while (true) {
+		for (int i=0; i<work; i++) {
 			try {
 				MessageDigest md = MessageDigest.getInstance("SHA-256");
 				md.update((new BigInteger(1024, rn)).toString(2).getBytes());
 				byte byteData[] = md.digest();
-				if (work <= 0 || rn.nextInt(work) == 0) {
-					break;
-				}
 			} catch (Exception e) {
 				System.out.println("exception caught " + e);
-				break;
 			}
 		}
 
@@ -93,18 +89,22 @@ public class AutoBolt extends BaseRichBolt {
 		if (!seen.containsKey(id)) {
 			seen.put(id, new ArrayList<Tuple>());
 		}
-		seen.get(id).add(tuple);
+		if (tuple.getString(0).equals("fin")) {
+			seen.get(id).add(tuple);
+		} else {
+			collector.ack(tuple);
+		}
 
 		// System.out.format("%s received, %d total\n", name, seen.get(id).size());
 
-		int numFinished = 0;
-		for (Tuple t : seen.get(id)) {
-			if (t.getString(0).equals("fin")) {
-				numFinished += 1;
-			}
-		}
+		// int numFinished = 0;
+		// for (Tuple t : seen.get(id)) {
+		// 	if (t.getString(0).equals("fin")) {
+		// 		numFinished += 1;
+		// 	}
+		// }
 
-		if (numFinished >= parents.size()) {
+		if (seen.get(id).size() >= parents.size()) {
 			for (Tuple t : seen.get(id)) {
 				collector.ack(t);
 			}
