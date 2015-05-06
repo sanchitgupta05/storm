@@ -226,7 +226,7 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 		String status = topologyStatus();
 		LOG.info("Throughput: " + throughput);
 		LOG.info("Topology Status: " + status);
-
+		printStatistics(statistics);
 		// wait sufficiently after rebalancing to run the algorithm again
 		try {	
 			if (status.equals("REBALANCING")) {
@@ -358,7 +358,10 @@ public abstract class BaseFeedbackAlgorithm implements IFeedbackAlgorithm {
 			ComponentStatistics stats = statistics.get(component);
 			System.out.println(component + ".emitCount = " + stats.emitCount + " tuples/s");
 		}
-
+		for (String component : statistics.keySet()) {
+			ComponentStatistics stats = statistics.get(component);
+			System.out.println(component + ".executeCount = " + stats.executeCount + " tuples/s");
+		}
 		for (String component : statistics.keySet()) {
 			ComponentStatistics stats = statistics.get(component);
 			System.out.println(component + ".outputRate = " + stats.outputRate + " tuples/s");
