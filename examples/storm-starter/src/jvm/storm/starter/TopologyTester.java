@@ -110,15 +110,20 @@ public class TopologyTester {
 	return builder.createTopology();
   }
 
-  public static void main(String[] args) throws Exception {
+  private static Map<String, StormTopology> getTopologies() {
 	Map<String, StormTopology> tops = new HashMap<String, StormTopology>();
 	tops.put("wordcount", createWordCount());
 	tops.put("custom0", createCustom0());
+	return tops;
+  }
 
+  public static void main(String[] args) throws Exception {
+	Map<String, StormTopology> tops = getTopologies();
 	String topologyName = args[0];
 	String topologyType = args[1];
 	String algorithm = args[2];
 	int iterations = Integer.parseInt(args[3]);
+	boolean local = (args[4].equals("1"));
 
 	StormTopology topology = tops.get(topologyType);
 	if (topology == null) {
@@ -129,10 +134,18 @@ public class TopologyTester {
     Config conf = new Config();
 	conf.setNumAckers(3);
 	conf.put("FEEDBACK_ALGORITHM", algorithm);
-	conf.put("EMAIL_ITERATIONS", iterations);
+	conf.put("FEEDBACK_ITERATIONS", iterations);
 	conf.setNumWorkers(6);
 
-	FeedbackMetricsConsumer.register(conf, topologyName, topology);
-	StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, topology);
+	if (local) {
+	  LocalCluster cluster = new LocalCluster();
+	  FeedbackMetricsConsumer.register(conf, topologyName, topology, cluster);
+	  cluster.submitTopology(topologyName, conf, topology);
+	  Thread.sleep(45 * 60 * 1000);
+	  cluster.shutdown();
+	} else {
+	  FeedbackMetricsConsumer.register(conf, topologyName, topology);
+	  StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, topology);
+	}
   }
 }

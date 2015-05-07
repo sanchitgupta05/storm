@@ -11,7 +11,7 @@ function run_topology() {
 	while sleep 1; do
 		storm jar target/storm-starter-0.10.0-SNAPSHOT-jar-with-dependencies.jar \
 			  storm.starter.TopologyTester \
-			  "$name" "$topology" "$algorithm" "$iterations"
+			  "$name" "$topology" "$algorithm" "$iterations" "0"
 		if [ "$?" -eq "0" ]; then
 			break
 		fi
@@ -32,6 +32,8 @@ function run_topology() {
 }
 
 mvn clean compile assembly:single || exit
+
+local=1
 
 # run_topology "wordcount" "iterative"
 # run_topology "wordcount" "trained"

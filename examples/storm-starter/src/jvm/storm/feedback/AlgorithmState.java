@@ -58,6 +58,7 @@ public class AlgorithmState {
 
 	// These are stored in zookeeper
 	public Map<String, Integer> parallelism;
+	public Integer iteration;
 
 	public Map stormConf;
 	public TopologyContext topologyContext;
@@ -101,8 +102,11 @@ public class AlgorithmState {
 		load();
 
 		if (parallelism == null) {
-			// First iteration of algorithm
 			parallelism = startingParallelism;
+		}
+
+		if (iteration == null) {
+			iteration = 0;
 		}
 
 		LOG.info("zookeeper path: " + basePath);
@@ -168,12 +172,14 @@ public class AlgorithmState {
 
 	private void load() {
 		parallelism = (Map<String, Integer>)loadObject("parallelism");
+		iteration = (Integer)loadObject("iteration");
 		algorithm.load();
 	}
 
 	// Save algorithm state to zookeeper
 	private void save() {
 		saveObject("parallelism", parallelism);
+		saveObject("iteration", iteration);
 		algorithm.save();
 	}
 
@@ -250,6 +256,8 @@ public class AlgorithmState {
 				newThroughput = mean(newThroughputs);
 				LOG.info("Final Throughput: " + newThroughput);
 				printStatistics(statistics);
+
+				iteration++;
 				algorithm.run(statistics);
 
 				newThroughputs = new ArrayList<Double>();
