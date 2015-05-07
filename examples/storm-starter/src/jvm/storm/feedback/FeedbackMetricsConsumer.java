@@ -248,11 +248,16 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(4, null);
 
 		String type = (String)stormConf.get("FEEDBACK_ALGORITHM");
-		if (type == "trained") {
-			algorithm = new TrainedAlgorithm(3);
-		}
-		if (type == "iterative") {
-			algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+		if (type != null) {
+			if (type.equals("trained")) {
+				algorithm = new TrainedAlgorithm(3);
+			}
+			if (type.equals("iterative")) {
+				algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+			}
+			if (type.equals("roundrobin")) {
+				algorithm = new RoundRobin();
+			}
 		}
 
 		if (algorithm == null) {

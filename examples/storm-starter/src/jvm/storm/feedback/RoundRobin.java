@@ -49,6 +49,9 @@ public class RoundRobin extends IterativeFeedbackAlgorithm {
 	public List<Set<String>> getActions(Map<String, ComponentStatistics> statistics) {
 		List<Set<String>> result = new ArrayList<Set<String>>();
 		for (String component : state.topologyContext.getComponentIds()) {
+			if (statistics.get(component).isSpout)
+				continue;
+
 			Set<String> action = new HashSet<String>();
 			action.add(component);
 			result.add(action);

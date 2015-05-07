@@ -35,7 +35,6 @@ import storm.starter.spout.RandomSentenceSpout;
 import storm.auto.AutoSpout;
 import storm.auto.AutoBolt;
 import storm.auto.AutoTopologyBuilder;
-import storm.auto.TopologyQueue;
 
 import storm.feedback.FeedbackMetricsConsumer;
 import storm.feedback.IFeedbackAlgorithm;
@@ -141,31 +140,30 @@ public class WordCountTopology {
 	// builder.addBolt(AutoBolt.create("e", 1, 1)
 	// 				.addParent("c"), 2);
 
+
     Config conf = new Config();
 	conf.setNumAckers(3);
+	// conf.put("FEEDBACK_ALGORITHM", algorithm);
+	// conf.put("EMAIL_ITERATIONS", iterations);
 
-	TopologyQueue queue = new TopologyQueue();
-	queue.add("test", builder.createTopology(), conf);
-	queue.run();
+	StormTopology topology = builder.createTopology();
+    if (args != null && args.length > 0) {
+	  conf.setNumWorkers(6);
 
-	// StormTopology topology = builder.createTopology();
-    // if (args != null && args.length > 0) {
-	//   conf.setNumWorkers(6);
+	  String topologyName = args[0];
+	  FeedbackMetricsConsumer.register(conf, topologyName, topology);
+      StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, builder.createTopology());
+    }
+    else {
+	  LocalCluster cluster = new LocalCluster();
+	  String topologyName = "word-count";
+	  FeedbackMetricsConsumer.register(conf, topologyName, topology, cluster);
+      cluster.submitTopology(topologyName, conf, topology);
 
-	//   String topologyName = args[0];
-	//   FeedbackMetricsConsumer.register(conf, topologyName, topology);
-    //   StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, builder.createTopology());
-    // }
-    // else {
-	//   LocalCluster cluster = new LocalCluster();
-	//   String topologyName = "word-count";
-	//   FeedbackMetricsConsumer.register(conf, topologyName, topology, cluster);
-    //   cluster.submitTopology(topologyName, conf, topology);
+	  while(1<2)
+		  Thread.sleep(60 * 1000);
 
-	//   while(1<2)
-	// 	  Thread.sleep(60 * 1000);
-
-    //   // cluster.shutdown();
-    // }
+      // cluster.shutdown();
+    }
   }
 }

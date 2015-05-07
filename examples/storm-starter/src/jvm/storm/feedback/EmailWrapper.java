@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -42,6 +44,8 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 	private IFeedbackAlgorithm algorithm;
 	private int k;
 
+	private Timer timer;
+	private Long emailStartTime;
 	private List<Map<String, String>> emailLog;
 
 	public EmailWrapper(int k, IFeedbackAlgorithm algorithm) {
@@ -57,16 +61,37 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 
 	public void load() {
 		emailLog = (List<Map<String, String>>) state.loadObject("emailLog");
+		emailStartTime = (Long) state.loadObject("emailStartTime");
 		algorithm.load();
 
 		if (emailLog == null) {
 			emailLog = new ArrayList<Map<String, String>>();
 		}
+
+		if (emailStartTime == null) {
+			emailStartTime = System.currentTimeMillis();
+		}
+
+		if (timer == null) {
+			timer = new Timer();
+			scheduleEmail(new EmailTask(this, "Progress (15 minutes)"), 15 * 60 * 1000);
+			scheduleEmail(new EmailTask(this, "Progress (30 minutes)"), 30 * 60 * 1000);
+			scheduleEmail(new EmailTask(this, "Progress (45 minutes)"), 45 * 60 * 1000);
+		}
 	}
 
 	public void save() {
 		state.saveObject("emailLog", emailLog);
+		state.saveObject("emailStartTime", emailStartTime);
 		algorithm.save();
+	}
+
+	private void scheduleEmail(TimerTask task, long time) {
+		long elapsed = System.currentTimeMillis() - emailStartTime;
+		long deltaTime = time - elapsed;
+		if (deltaTime > 0) {
+			timer.schedule(task, deltaTime);
+		}
 	}
 
 	public static void log(String key, Object value) {
@@ -101,7 +126,8 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 
 		if (emailLog.size() == k+1) {
 			try {
-				sendEmail();
+				long elapsed = System.currentTimeMillis() - emailStartTime;
+				sendEmail(String.format("Finished (%d minutes)", elapsed / (1000 * 60)));
 				state.deactivate();
 			} catch (Exception e) {
 				System.out.println("sendEmail() exception: " + e);
@@ -140,22 +166,22 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		for (Map<String, String> entry : emailLog) {
 			List<String> line = new ArrayList<String>();
 			for (String column : columns) {
-				line.add(entry.get(column));
+				line.add(String.format("%s", entry.get(column)));
 			}
 			lines.add(StringUtils.join(line, "; "));
 		}
 		return StringUtils.join(lines, "\n");
 	}
 
-	private void sendEmail() throws Exception {
+	private void sendEmail(String header) throws Exception {
 		String content = getContent();
 
 		String url = "https://api.mailgun.net/v3/sandbox9a097dfb563f4cbe8ffa1fa931fa76ea.mailgun.org/messages";
 		String data = "";
 		data += String.format("from=%s", "bot@525project.io");
 		data += String.format("&to=%s", "xmasotto@gmail.com");
-		data += String.format("&subject=%s", "Results for " + state.topologyName);
-		data += String.format("&text=%s", content);
+		data += String.format("&subject=%s", "Status Update for Topology " + state.topologyContext.getStormId());
+		data += String.format("&text=%s", header + "\n\n" + content);
 
 		URL obj = new URL(url);
 		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
@@ -188,7 +214,6 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		}
 		in.close();
 
-		//print result
 		System.out.println(response.toString());
 	}
 
@@ -196,4 +221,21 @@ public class EmailWrapper implements IFeedbackAlgorithm {
         String userPassword = username + ":" + password;
         return new String(Base64.encodeBase64(userPassword.getBytes()));
     }
+
+	class EmailTask extends TimerTask {
+		private EmailWrapper wrapper;
+		private String header;
+		public EmailTask(EmailWrapper wrapper, String header) {
+			this.wrapper = wrapper;
+			this.header = header;
+		}
+
+		public void run() {
+			try {
+				wrapper.sendEmail(header);
+			} catch (Exception e) {
+				System.out.println("EmailTask exception: " + e);
+			}
+		}
+	}
 }
