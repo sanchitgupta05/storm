@@ -177,7 +177,7 @@ public class AlgorithmState {
 	}
 
 	// Save algorithm state to zookeeper
-	private void save() {
+	public void save() {
 		saveObject("parallelism", parallelism);
 		saveObject("iteration", iteration);
 		algorithm.save();
@@ -218,7 +218,7 @@ public class AlgorithmState {
 		String status = topologyStatus();
 		LOG.info("Throughput: " + throughput);
 		LOG.info("Topology Status: " + status);
-		printStatistics(statistics);
+
 		// wait sufficiently after rebalancing to run the algorithm again
 		if (status != null && status.equals("REBALANCING")) {
 			updateCounter = -5;
@@ -256,6 +256,13 @@ public class AlgorithmState {
 				newThroughput = mean(newThroughputs);
 				LOG.info("Final Throughput: " + newThroughput);
 				printStatistics(statistics);
+
+				// was this iteration a fluke?
+				if (newThroughput < 5) {
+					// Try again
+					rebalance();
+					return;
+				}
 
 				iteration++;
 				algorithm.run(statistics);

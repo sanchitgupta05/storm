@@ -38,16 +38,16 @@ public class DiamondTopology {
   public static void main(String[] args) throws Exception {
 
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
-	
+
 	/* Diamond Topology construction*/
-	builder.addSpout(AutoSpout.create("a", 10));
+	builder.addSpout(AutoSpout.create("a"));
 	AutoBolt output = AutoBolt.create("output", 1, 100);
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
 		builder.addBolt(AutoBolt.create(boltName, 2, 100)
 						.addParent("a"), 1);
 		output.addParent(boltName);
-	}	
+	}
 	builder.addBolt(output, 1);
 
    /* Config setup */
@@ -64,7 +64,7 @@ public class DiamondTopology {
 
 		String topologyName = args[0];
 		FeedbackMetricsConsumer.register(conf, topologyName, topology);
-		StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, 
+		StormSubmitter.submitTopologyWithProgressBar(topologyName, conf,
 																	builder.createTopology());
 	}
     else {
@@ -80,4 +80,3 @@ public class DiamondTopology {
     }
   }
 }
-

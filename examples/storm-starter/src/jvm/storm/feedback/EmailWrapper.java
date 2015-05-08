@@ -157,6 +157,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		columns.add("cpuBound");
 		columns.add("cores");
 		columns.add("penalty");
+		columns.add("throughputs");
 
 		// Set<String> fields = new HashSet<String>();
 		// for (Map<String, String> entry : emailLog) {
@@ -173,7 +174,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		List<String> lines = new ArrayList<String>();
 		List<String> header = new ArrayList<String>();
 		for (String column : columns) {
-			header.add(column);
+		 	header.add(column);
 		}
 		lines.add(StringUtils.join(header, "; "));
 		for (Map<String, String> entry : emailLog) {
@@ -229,7 +230,9 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 			in.close();
 
 			System.out.println(response.toString());
+
 			sentEmails.add(header);
+			state.save();
 
 		} catch (Exception e) {
 			System.out.println("sendEmail() exception: " + e);
