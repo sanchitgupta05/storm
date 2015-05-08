@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*
 package storm.feedback;
 
 import org.slf4j.Logger;
@@ -56,7 +57,6 @@ public class GAlgorithm extends BaseFeedbackAlgorithm {
 
 	public GAlgorithm(IRanker r) { ranker = r; }
 
-	@Override
 	public Map<String, Integer> runGA(Map<String, ComponentStatistics> stats){
 		Map<String,ComponentData> componentToAlgoData = 
 									new HashMap<String, ComponentData>();
@@ -97,6 +97,8 @@ public class GAlgorithm extends BaseFeedbackAlgorithm {
 				inp_rate = 0;
 			}
 			*/
+			
+/*
 
 			double avgLatencyAtComponent = (s.receiveLatency
 														+s.sendLatency
@@ -272,7 +274,6 @@ public class GAlgorithm extends BaseFeedbackAlgorithm {
 		else return Math.pow(Math.E, (oldUtil-newUtil)/temperature); // the latencies have been negated
 	}
 
-/*************************************************************/
 
 	private class BuildGraph {
 		public Map<String, List<String>> adjList;
@@ -387,4 +388,4 @@ public class GAlgorithm extends BaseFeedbackAlgorithm {
 	}
 
 }
-
+*/
