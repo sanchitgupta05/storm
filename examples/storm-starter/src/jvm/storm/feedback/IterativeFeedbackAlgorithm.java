@@ -30,6 +30,11 @@ public abstract class IterativeFeedbackAlgorithm implements IFeedbackAlgorithm {
 	private Map<String, Integer> oldParallelism;
 	private List<Double> oldThroughputs;
 	private List<Set<String>> history;
+	private int iterations;
+
+	public IterativeFeedbackAlgorithm(int iterations) {
+		this.iterations = iterations;
+	}
 
 	public void setState(AlgorithmState state) {
 		this.state = state;
@@ -70,6 +75,11 @@ public abstract class IterativeFeedbackAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	private void applyNextAction(Map<String, ComponentStatistics> statistics) {
+		if (state.iteration >= iterations) {
+			// we can revert on the last iteration, but we can't try new configs
+			return;
+		}
+
 		if (history == null) {
 			history = new ArrayList<Set<String>>();
 		}

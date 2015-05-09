@@ -50,7 +50,8 @@ import storm.feedback.ranking.IRanker;
 public class CombinatorialAlgorithm extends IterativeFeedbackAlgorithm {
 	private IRanker ranker;
 
-	public CombinatorialAlgorithm(IRanker ranker) {
+	public CombinatorialAlgorithm(int iterations, IRanker ranker) {
+		super(iterations);
 		this.ranker = ranker;
 	}
 

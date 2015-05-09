@@ -47,6 +47,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 	private Timer timer;
 	private Long emailStartTime;
 	private List<Map<String, String>> emailLog;
+	private List<String> sentEmails;
 
 	public EmailWrapper(int k, IFeedbackAlgorithm algorithm) {
 		this.k = k;
@@ -62,6 +63,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 	public void load() {
 		emailLog = (List<Map<String, String>>) state.loadObject("emailLog");
 		emailStartTime = (Long) state.loadObject("emailStartTime");
+		sentEmails = (List<String>) state.loadObject("sentEmails");
 		algorithm.load();
 
 		if (emailLog == null) {
@@ -72,25 +74,36 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 			emailStartTime = System.currentTimeMillis();
 		}
 
+		if (sentEmails == null) {
+			sentEmails = new ArrayList<String>();
+		}
+
 		if (timer == null) {
 			timer = new Timer();
-			scheduleEmail(new EmailTask(this, "Progress (15 minutes)"), 15 * 60 * 1000);
-			scheduleEmail(new EmailTask(this, "Progress (30 minutes)"), 30 * 60 * 1000);
-			scheduleEmail(new EmailTask(this, "Progress (45 minutes)"), 45 * 60 * 1000);
+			scheduleEmail("Progress (15 minutes)", 15 * 60 * 1000);
+			scheduleEmail("Progress (30 minutes)", 30 * 60 * 1000);
+			scheduleEmail("Progress (45 minutes)", 45 * 60 * 1000);
 		}
 	}
 
 	public void save() {
 		state.saveObject("emailLog", emailLog);
 		state.saveObject("emailStartTime", emailStartTime);
+		state.saveObject("sentEmails", sentEmails);
 		algorithm.save();
 	}
 
-	private void scheduleEmail(TimerTask task, long time) {
+	private void scheduleEmail(String header, long time) {
 		long elapsed = System.currentTimeMillis() - emailStartTime;
 		long deltaTime = time - elapsed;
+
 		if (deltaTime > 0) {
+			EmailTask task = new EmailTask(this, header);
 			timer.schedule(task, deltaTime);
+		} else {
+			if (!sentEmails.contains(header)) {
+				sendEmail(header);
+			}
 		}
 	}
 
@@ -116,6 +129,9 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		// Also, we want to favor smaller configurations, so we need to
 		// take a statisically significant max favoring smaller configurations
 
+		long ms = System.currentTimeMillis() - emailStartTime;
+		log("seconds", (ms / 1000));
+
 		log("parallelism", state.parallelism);
 		log("throughput", state.newThroughput);
 		log("throughputs", state.newThroughputs);
@@ -125,25 +141,23 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		}
 
 		if (emailLog.size() == k+1) {
-			try {
-				long elapsed = System.currentTimeMillis() - emailStartTime;
-				sendEmail(String.format("Finished (%d minutes)", elapsed / (1000 * 60)));
-				state.deactivate();
-			} catch (Exception e) {
-				System.out.println("sendEmail() exception: " + e);
-			}
+			long elapsed = System.currentTimeMillis() - emailStartTime;
+			sendEmail(String.format("Finished (%d minutes)", elapsed / (1000 * 60)));
+			state.deactivate();
 		}
 	}
 
 	private String getContent() {
 		List<String> columns = new ArrayList<String>();
 
+		columns.add("seconds");
 		columns.add("parallelism");
 		columns.add("throughput");
 		columns.add("correlation");
 		columns.add("cpuBound");
 		columns.add("cores");
 		columns.add("penalty");
+		columns.add("throughputs");
 
 		// Set<String> fields = new HashSet<String>();
 		// for (Map<String, String> entry : emailLog) {
@@ -160,7 +174,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		List<String> lines = new ArrayList<String>();
 		List<String> header = new ArrayList<String>();
 		for (String column : columns) {
-			header.add(column);
+		 	header.add(column);
 		}
 		lines.add(StringUtils.join(header, "; "));
 		for (Map<String, String> entry : emailLog) {
@@ -173,48 +187,56 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		return StringUtils.join(lines, "\n");
 	}
 
-	private void sendEmail(String header) throws Exception {
-		String content = getContent();
+	private void sendEmail(String header) {
+		try {
+			String content = getContent();
 
-		String url = "https://api.mailgun.net/v3/sandbox9a097dfb563f4cbe8ffa1fa931fa76ea.mailgun.org/messages";
-		String data = "";
-		data += String.format("from=%s", "bot@525project.io");
-		data += String.format("&to=%s", "xmasotto@gmail.com");
-		data += String.format("&subject=%s", "Status Update for Topology " + state.topologyContext.getStormId());
-		data += String.format("&text=%s", header + "\n\n" + content);
+			String url = "https://api.mailgun.net/v3/sandbox9a097dfb563f4cbe8ffa1fa931fa76ea.mailgun.org/messages";
+			String data = "";
+			data += String.format("from=%s", "bot@525project.io");
+			data += String.format("&to=%s", "xmasotto@gmail.com");
+			data += String.format("&subject=%s", "Status Update for Topology " + state.topologyContext.getStormId());
+			data += String.format("&text=%s", header + "\n\n" + content);
 
-		URL obj = new URL(url);
-		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+			URL obj = new URL(url);
+			HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 
-        // add request header
-		con.setRequestMethod("POST");
-		// con.setRequestProperty("User-Agent", USER_AGENT);
-		con.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
-		con.setRequestProperty("Authorization", "Basic " + getBasicAuthenticationEncoding("api", "key-d3a333320e26c946dca91740de66bb10"));
+			// add request header
+			con.setRequestMethod("POST");
+			// con.setRequestProperty("User-Agent", USER_AGENT);
+			con.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
+			con.setRequestProperty("Authorization", "Basic " + getBasicAuthenticationEncoding("api", "key-d3a333320e26c946dca91740de66bb10"));
 
-		// Send post request
-		con.setDoOutput(true);
-		DataOutputStream wr = new DataOutputStream(con.getOutputStream());
-		wr.writeBytes(data);
-		wr.flush();
-		wr.close();
+			// Send post request
+			con.setDoOutput(true);
+			DataOutputStream wr = new DataOutputStream(con.getOutputStream());
+			wr.writeBytes(data);
+			wr.flush();
+			wr.close();
 
-		int responseCode = con.getResponseCode();
-		System.out.println("\nSending 'POST' request to URL : " + url);
-		System.out.println("Post parameters : " + data);
-		System.out.println("Response Code : " + responseCode);
+			int responseCode = con.getResponseCode();
+			System.out.println("\nSending 'POST' request to URL : " + url);
+			System.out.println("Post parameters : " + data);
+			System.out.println("Response Code : " + responseCode);
 
-		BufferedReader in = new BufferedReader(
-			new InputStreamReader(con.getInputStream()));
-		String inputLine;
-		StringBuffer response = new StringBuffer();
+			BufferedReader in = new BufferedReader(
+				new InputStreamReader(con.getInputStream()));
+			String inputLine;
+			StringBuffer response = new StringBuffer();
 
-		while ((inputLine = in.readLine()) != null) {
-			response.append(inputLine);
+			while ((inputLine = in.readLine()) != null) {
+				response.append(inputLine);
+			}
+			in.close();
+
+			System.out.println(response.toString());
+
+			sentEmails.add(header);
+			state.save();
+
+		} catch (Exception e) {
+			System.out.println("sendEmail() exception: " + e);
 		}
-		in.close();
-
-		System.out.println(response.toString());
 	}
 
 	private String getBasicAuthenticationEncoding(String username, String password) {
@@ -231,11 +253,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		}
 
 		public void run() {
-			try {
-				wrapper.sendEmail(header);
-			} catch (Exception e) {
-				System.out.println("EmailTask exception: " + e);
-			}
+			wrapper.sendEmail(header);
 		}
 	}
 }

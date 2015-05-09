@@ -11,13 +11,13 @@ function run_topology() {
 	while sleep 1; do
 		storm jar target/storm-starter-0.10.0-SNAPSHOT-jar-with-dependencies.jar \
 			  storm.starter.TopologyTester \
-			  "$name" "$topology" "$algorithm" "$iterations"
+			  "$name" "$topology" "$algorithm" "$iterations" "0"
 		if [ "$?" -eq "0" ]; then
 			break
 		fi
 	done
 
-	for i in `seq 1 45`; do
+	for i in `seq 1 60`; do
 		echo "[$i] Checking Topology $name"
 		storm list | grep INACTIVE | grep "$name"
 		if [ "$?" -eq "0" ]; then
@@ -33,10 +33,12 @@ function run_topology() {
 
 mvn clean compile assembly:single || exit
 
+local=1
+
 # run_topology "wordcount" "iterative"
-# run_topology "wordcount" "trained"
 # run_topology "wordcount" "roundrobin"
 
-run_topology "custom0" "iterative"
+# run_topology "custom0" "random"
+# run_topology "custom0" "iterative"
+# run_topology "custom0" "roundrobin"
 run_topology "custom0" "trained"
-run_topology "custom0" "roundrobin"

@@ -38,16 +38,16 @@ public class LinearTopology {
   public static void main(String[] args) throws Exception {
 
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
-	
+
 	/* Linear Topology construction*/
-	builder.addSpout(AutoSpout.create("a", 10));
+	builder.addSpout(AutoSpout.create("a"));
 	String prevBoltName = "a";
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
 		builder.addBolt(AutoBolt.create(boltName, 2, 100)
 						.addParent(prevBoltName), 1);
 		prevBoltName = boltName;
-	}	
+	}
 
    /* Config setup */
 	Config conf = new Config();
@@ -63,7 +63,7 @@ public class LinearTopology {
 
 		String topologyName = args[0];
 		FeedbackMetricsConsumer.register(conf, topologyName, topology);
-		StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, 
+		StormSubmitter.submitTopologyWithProgressBar(topologyName, conf,
 																	builder.createTopology());
 	}
     else {

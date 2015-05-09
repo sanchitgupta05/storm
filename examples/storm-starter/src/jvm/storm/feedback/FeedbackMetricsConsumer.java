@@ -239,38 +239,33 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 
 	private IFeedbackAlgorithm createAlgorithm(Map stormConf) {
 		IFeedbackAlgorithm algorithm = null;
-		// TODO: select algorithm based on stormConf
-		// return new RoundRobin();
-		// IFeedbackAlgorithm algorithm = new CombinatorialAlgorithm(new CongestionRanker());
-		// IFeedbackAlgorithm algorithm = new GAlgorithm(new CongestionRanker());
 
-		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(3, new CombinatorialAlgorithm(new CongestionRanker()));
-		// IFeedbackAlgorithm algorithm = new BeamSearchAlgorithm(4, null);
+		int iterations = ((Long)stormConf.get("FEEDBACK_ITERATIONS")).intValue();
+		int emailIterations = iterations + 5;
 
 		String type = (String)stormConf.get("FEEDBACK_ALGORITHM");
 		if (type != null) {
 			if (type.equals("trained")) {
-				algorithm = new TrainedAlgorithm(3);
+				algorithm = new TrainedAlgorithm(iterations);
 			}
 			if (type.equals("iterative")) {
-				algorithm = new CombinatorialAlgorithm(new CongestionRanker());
+				algorithm = new CombinatorialAlgorithm(iterations, new CongestionRanker());
 			}
 			if (type.equals("roundrobin")) {
-				algorithm = new RoundRobin();
+				algorithm = new RoundRobin(iterations);
+			}
+			if (type.equals("random")) {
+				algorithm = new RandomAlgorithm(iterations);
 			}
 		}
 
 		if (algorithm == null) {
-			algorithm = new RoundRobin();
+			algorithm = new RoundRobin(iterations);
 		}
 
-		Long iterations = (Long)stormConf.get("EMAIL_ITERATIONS");
-		if (iterations == null) {
-			return algorithm;
-		} else {
-			return new EmailWrapper(iterations.intValue(), algorithm);
-		}
+		return new EmailWrapper(emailIterations, algorithm);
 	}
+
 	private AlgorithmState createAlgorithmState(Map stormConf, TopologyContext context, Object arg) {
 		Map argDict = (Map)arg;
 		String name = (String)argDict.get("name");

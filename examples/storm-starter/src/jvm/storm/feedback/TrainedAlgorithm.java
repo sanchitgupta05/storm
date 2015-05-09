@@ -36,11 +36,10 @@ public class TrainedAlgorithm implements IFeedbackAlgorithm {
 	private List<Map<String, Integer>> parallelismHistory;
 	private List<Double> throughputHistory;
 	private List<Map<String, ComponentStatistics>> statisticsHistory;
+	private int iterations;
 
-	private int numTraining;
-
-	public TrainedAlgorithm(int numTraining) {
-		this.numTraining = numTraining;
+	public TrainedAlgorithm(int iterations) {
+		this.iterations = iterations;
 	}
 
 	public void setState(AlgorithmState state) {
@@ -61,6 +60,10 @@ public class TrainedAlgorithm implements IFeedbackAlgorithm {
 	}
 
 	public void run(Map<String, ComponentStatistics> statistics) {
+		if (state.iteration > iterations) {
+			return;
+		}
+
 		if (parallelismHistory == null) {
 			parallelismHistory = new ArrayList<Map<String, Integer>>();
 			throughputHistory = new ArrayList<Double>();
@@ -73,7 +76,7 @@ public class TrainedAlgorithm implements IFeedbackAlgorithm {
 		statisticsHistory.add(statistics);
 
 		int n = parallelismHistory.size();
-		if (n < numTraining) {
+		if (n < 3) {
 			// Still collecting data, rebalance
 			Map<String, Integer> next = new HashMap<String, Integer>();
 			for (String component : state.topologyContext.getComponentIds()) {
@@ -88,7 +91,7 @@ public class TrainedAlgorithm implements IFeedbackAlgorithm {
 			state.rebalance();
 		}
 
-		if (n >= numTraining) {
+		if (n >= 3) {
 			// Get number of worker processes for this topology
 			int numWorkers = 1;
 			ClusterSummary summary = state.getClusterInfo();
@@ -112,7 +115,7 @@ public class TrainedAlgorithm implements IFeedbackAlgorithm {
 				for (int c=1; c<=4; c++) {
 					for (int j=0; j<25; j++) {
 						double penalty = Math.pow(alpha, j) - 1;
-						for (int k=0; k<n; k++) {
+						for (int k=n-3; k<n; k++) {
 							double score = getScore(
 								statisticsHistory.get(k),
 								cpuBound,
@@ -194,20 +197,9 @@ public class TrainedAlgorithm implements IFeedbackAlgorithm {
 		double alpha = 0.5;
 		score -= alpha * (diffsum / diffcount);
 
-		// double avg1 = state.mean(throughputHistory);
-		// double avg2 = state.mean(predicted);
-		// double covariance = 0;
-		// for (int i=0; i<n; i++) {
-		// 	double d1 = (throughputHistory.get(i) - avg1);
-		// 	double d2 = (predicted.get(i) - avg2);
-		// 	covariance += d1 * d1 + d2 * d2;
-		// }
-
 		System.out.println("actual: " + throughputHistory);
 		System.out.println("predicted: " + Arrays.toString(predicted));
 		System.out.println("correlation - avg pdiff: " + score);
-		// System.out.println("scaled l1 norm: " + score);
-		// System.out.println("scaled covariance: " + covariance);
 
 		return score;
 	}

@@ -41,15 +41,15 @@ public class StarTopology {
   public static void main(String[] args) throws Exception {
 
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(5);
-	
+
 	/*Star Topology construction*/
 	List<String> spouts = new ArrayList<String>();
 	for(int i = 0; i < 3; i++) {
 		String spoutName = "spout_"+String.valueOf(i);
-		builder.addSpout(AutoSpout.create(spoutName, 100));
+		builder.addSpout(AutoSpout.create(spoutName));
 		spouts.add(spoutName);
 	}
-	
+
 	String midBoltName = "mid-bolt";
 	AutoBolt midBolt = AutoBolt.create(midBoltName, 1, 100);
 	for(String spout : spouts) {
@@ -61,7 +61,7 @@ public class StarTopology {
 		String boltName = "out_"+String.valueOf(i);
 		builder.addBolt(AutoBolt.create(boltName, 2, 100)
 						.addParent(midBoltName), 1);
-	}	
+	}
 
    /* Config setup */
 	Config conf = new Config();
@@ -77,7 +77,7 @@ public class StarTopology {
 
 		String topologyName = args[0];
 		FeedbackMetricsConsumer.register(conf, topologyName, topology);
-		StormSubmitter.submitTopologyWithProgressBar(topologyName, conf, 
+		StormSubmitter.submitTopologyWithProgressBar(topologyName, conf,
 																	builder.createTopology());
 	}
     else {
@@ -93,4 +93,3 @@ public class StarTopology {
     }
   }
 }
-
