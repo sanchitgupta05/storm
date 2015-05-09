@@ -130,6 +130,22 @@ public class WordCountTopology {
 	// builder.addBolt(AutoBolt.create("d", 150, 10)
 	// 				.addParent("c"), 1);
 
+	//builder.addSpout(AutoSpout.create("a", 10));
+//	builder.addBolt(AutoBolt.create("b", 2, 1000)
+//					.addParent("a"), 1);
+//	builder.addBolt(AutoBolt.create("c", 1, 1000)
+//					.addParent("a"), 1);
+//	builder.addBolt(AutoBolt.create("d", 2, 1000)
+//					.addParent("c"), 1);
+	// builder.addSpout(AutoSpout.create("a"));
+	// builder.addBolt(AutoBolt.create("b", 10, 1)
+	// 				.addParent("a"), 2);
+	// builder.addBolt(AutoBolt.create("c", 10, 50)
+	// 				.addParent("a"), 4);
+	// builder.addBolt(AutoBolt.create("d", 1, 1)
+	// 				.addParent("c"), 1);
+	// builder.addBolt(AutoBolt.create("e", 1, 1)
+	// 				.addParent("c"), 2);
 	// builder.addSpout(AutoSpout.create("a", 10));
 	// builder.addBolt(AutoBolt.create("b", 2, 1000)
 	// 				.addParent("a"), 1);
