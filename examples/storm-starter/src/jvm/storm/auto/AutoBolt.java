@@ -108,15 +108,13 @@ public class AutoBolt extends BaseRichBolt {
 			for (Tuple t : seen.get(id)) {
 				collector.ack(t);
 			}
-			seen.remove(id);
-
-			// System.out.println(name + " sending");
 
 			for (int i=0; i<rate; i++) {
 				String data = (new BigInteger(10, rn)).toString(2);
 				collector.emit(new Values(data));
 			}
 			collector.emit(new Values("fin"));
+			seen.remove(id);
 		}
 	}
 

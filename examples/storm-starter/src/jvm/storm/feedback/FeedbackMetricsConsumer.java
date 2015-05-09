@@ -257,6 +257,12 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			if (type.equals("random")) {
 				algorithm = new RandomAlgorithm(iterations);
 			}
+			if (type.equals("walk")) {
+				algorithm = new WalkAlgorithm(iterations, 0.5, new CongestionRanker());
+			}
+			if (type.equals("walk0")) {
+				algorithm = new WalkAlgorithm(iterations, 0.0, new CongestionRanker());
+			}
 		}
 
 		if (algorithm == null) {
@@ -304,7 +310,7 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 		conf.registerMetricsConsumer(FeedbackMetricsConsumer.class, arg, 1);
 		conf.setStatsSampleRate(1);
 		conf.put(Config.TOPOLOGY_BUILTIN_METRICS_BUCKET_SIZE_SECS, 1);
-		conf.setMaxSpoutPending(2);
+		conf.setMaxSpoutPending(16);
 	}
 
 	public static void register(Config conf, String name, StormTopology topology,

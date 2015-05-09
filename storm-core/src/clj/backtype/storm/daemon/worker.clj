@@ -43,7 +43,7 @@
   (log-message "Reading Assignments.")
   (let [assignment (:executor->node+port (.assignment-info storm-cluster-state storm-id nil))]
     (doall
-     (concat     
+     (concat
       [Constants/SYSTEM_EXECUTOR_ID]
       (mapcat (fn [[executor loc]]
                 (if (= loc [assignment-id port])
@@ -52,7 +52,7 @@
               assignment)))))
 
 (defnk do-executor-heartbeats [worker :executors nil]
-  ;; stats is how we know what executors are assigned to this worker 
+  ;; stats is how we know what executors are assigned to this worker
   (let [stats (if-not executors
                   (into {} (map (fn [e] {e nil}) (:executors worker)))
                   (->> executors
@@ -64,7 +64,7 @@
                :time-secs (current-time-secs)
                }]
     ;; do the zookeeper heartbeat
-    (.worker-heartbeat! (:storm-cluster-state worker) (:storm-id worker) (:assignment-id worker) (:port worker) zk-hb)    
+    (.worker-heartbeat! (:storm-cluster-state worker) (:storm-id worker) (:assignment-id worker) (:port worker) zk-hb)
     ))
 
 (defn do-heartbeat [worker]
@@ -137,7 +137,7 @@
                   remoteMap (HashMap.)]
               (fast-list-iter [[task tuple :as pair] tuple-batch]
                 (if (local-tasks task)
-                  (.add local pair) 
+                  (.add local pair)
 
                   ;;Using java objects directly to avoid performance issues in java code
                   (let [node+port (get @task->node+port task)]
@@ -145,12 +145,12 @@
                       (.put remoteMap node+port (ArrayList.)))
                     (let [remote (.get remoteMap node+port)]
                       (.add remote (TaskMessage. task (.serialize serializer tuple)))
-                     )))) 
+                     ))))
                 (local-transfer local)
                 (disruptor/publish transfer-queue remoteMap)
               ))]
     (if try-serialize-local
-      (do 
+      (do
         (log-warn "WILL TRY TO SERIALIZE ALL TUPLES (Turn off " TOPOLOGY-TESTING-ALWAYS-TRY-SERIALIZE " for production)")
         (fn [^KryoTupleSerializer serializer tuple-batch]
           (assert-can-serialize serializer tuple-batch)
@@ -205,7 +205,7 @@
         transfer-queue (disruptor/disruptor-queue "worker-transfer-queue" (storm-conf TOPOLOGY-TRANSFER-BUFFER-SIZE)
                                                   :wait-strategy (storm-conf TOPOLOGY-DISRUPTOR-WAIT-STRATEGY))
         executor-receive-queue-map (mk-receive-queue-map storm-conf executors)
-        
+
         receive-queue-map (->> executor-receive-queue-map
                                (mapcat (fn [[e queue]] (for [t (executor-id->tasks e)] [t queue])))
                                (into {}))
@@ -297,7 +297,7 @@
                                       (filter-key (complement (-> worker :task-ids set))))
               needed-connections (-> needed-assignment vals set)
               needed-tasks (-> needed-assignment keys)
-              
+
               current-connections (set (keys @(:cached-node+port->socket worker)))
               new-connections (set/difference needed-connections current-connections)
               remove-connections (set/difference current-connections needed-connections)]
@@ -323,7 +323,7 @@
                      (:cached-node+port->socket worker)
                      #(HashMap. (apply dissoc (into {} %1) %&))
                      remove-connections)
-              
+
            )))))
 
 (defn refresh-storm-active
@@ -348,7 +348,7 @@
     (disruptor/clojure-handler
       (fn [packets _ batch-end?]
         (.add drainer packets)
-        
+
         (when batch-end?
           (read-locked endpoint-socket-lock
             (let [node+port->socket @node+port->socket]
@@ -363,9 +363,18 @@
       (= status ConnectionWithStatus$Status/Ready))
     true))
 
+(defn connection-status [^IConnection connection]
+  (if (instance? ConnectionWithStatus connection)
+    (let [^ConnectionWithStatus connection connection
+          status (.status connection)]
+      status)
+    ["bad-type" connection]))
+
 ;; all connections are ready
 (defn all-connections-ready [worker]
     (let [connections (vals @(:cached-node+port->socket worker))]
+      (log-message "ALL CONNECTIONS READY: " (keys @(:cached-node+port->socket worker)))
+      (log-message "ALL CONNECTIONS STATUS: " (vec (map connection-status connections)))
       (every? is-connection-ready connections)))
 
 ;; we will wait all connections to be ready and then activate the spout/bolt
@@ -374,17 +383,28 @@
   [worker]
   (let [timer (:refresh-active-timer worker)
         delay-secs 0
-        recur-secs 1]
+        recur-secs 1
+        timeout-secs 10]
     (schedule timer
       delay-secs
       (fn this []
-        (if (all-connections-ready worker)
-          (do
-            (log-message "All connections are ready for worker " (:assignment-id worker) ":" (:port worker)
-              " with id "(:worker-id worker))
-            (reset! (:worker-active-flag worker) true))
-          (schedule timer recur-secs this :check-active false)
-            )))))
+        (when (not (:worker-active-flag worker))
+          (if (all-connections-ready worker)
+            (do
+              (log-message "All connections are ready for worker " (:assignment-id worker) ":" (:port worker)
+                           " with id "(:worker-id worker))
+              (reset! (:worker-active-flag worker) true))
+            (schedule timer recur-secs this :check-active false)))))
+
+    ;; It's possible for a Netty client to get stuck in the "connecting" state.
+    ;; The bad client will be corrected once we send data through, so it's safe to proceed.
+    (schedule timer
+      timeout-secs
+      (fn this []
+        (log-message "Timed out while waiting for connections on " (:assignment-id worker) ":" (:port worker)
+                     " with id" (:worker-id worker))
+        (reset! (:worker-active-flag worker) true)))
+    ))
 
 (defn launch-receive-thread [worker]
   (log-message "Launching receive-thread for " (:assignment-id worker) ":" (:port worker))
@@ -430,7 +450,7 @@
         initial-credentials (.credentials storm-cluster-state storm-id nil)
         auto-creds (AuthUtils/GetAutoCredentials storm-conf)
         subject (AuthUtils/populateSubject nil auto-creds initial-credentials)]
-      (Subject/doAs subject (reify PrivilegedExceptionAction 
+      (Subject/doAs subject (reify PrivilegedExceptionAction
         (run [this]
           (let [worker (worker-data conf shared-mq-context storm-id assignment-id port worker-id storm-conf cluster-state storm-cluster-state)
         heartbeat-fn #(do-heartbeat worker)
@@ -459,8 +479,8 @@
         _ (reset! executors (dofor [e (:executors worker)] (executor/mk-executor worker e initial-credentials)))
 
         transfer-tuples (mk-transfer-tuples-handler worker)
-        
-        transfer-thread (disruptor/consume-loop* (:transfer-queue worker) transfer-tuples)                                       
+
+        transfer-thread (disruptor/consume-loop* (:transfer-queue worker) transfer-tuples)
         shutdown* (fn []
                     (log-message "Shutting down worker " storm-id " " assignment-id " " port)
                     (doseq [[_ socket] @(:cached-node+port->socket worker)]
@@ -474,7 +494,7 @@
                     (log-message "Shutting down executors")
                     (doseq [executor @executors] (.shutdown executor))
                     (log-message "Shut down executors")
-                                        
+
                     ;;this is fine because the only time this is shared is when it's a local context,
                     ;;in which case it's a noop
                     (.term ^IContext (:mq-context worker))
@@ -490,11 +510,11 @@
                     (cancel-timer (:refresh-active-timer worker))
                     (cancel-timer (:executor-heartbeat-timer worker))
                     (cancel-timer (:user-timer worker))
-                    
+
                     (close-resources worker)
-                    
+
                     ;; TODO: here need to invoke the "shutdown" method of WorkerHook
-                    
+
                     (.remove-worker-heartbeat! (:storm-cluster-state worker) storm-id assignment-id port)
                     (log-message "Disconnecting from storm cluster state context")
                     (.disconnect (:storm-cluster-state worker))
@@ -542,7 +562,7 @@
   :distributed [conf]
   (fn [] (exit-process! 1 "Worker died")))
 
-(defn -main [storm-id assignment-id port-str worker-id]  
+(defn -main [storm-id assignment-id port-str worker-id]
   (let [conf (read-storm-config)]
     (validate-distributed-mode! conf)
     (let [worker (mk-worker conf nil storm-id assignment-id (Integer/parseInt port-str) worker-id)]

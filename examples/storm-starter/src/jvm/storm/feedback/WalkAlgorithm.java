@@ -37,11 +37,14 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 	private AlgorithmState state;
 	private List<Map<String, Integer>> parallelismHistory;
 	private List<Double> throughputHistory;
+	private List<Map<String, ComponentStatistics>> statisticsHistory;
 	private IRanker ranker;
+	private double alpha;
 	private int iterations;
 
-	public WalkAlgorithm(int iterations, IRanker ranker) {
+	public WalkAlgorithm(int iterations, double alpha, IRanker ranker) {
 		this.iterations = iterations;
+		this.alpha = alpha;
 		this.ranker = ranker;
 	}
 
@@ -52,11 +55,14 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 	public void load() {
 		parallelismHistory = (List<Map<String, Integer>>) state.loadObject("parallelismHistory");
 		throughputHistory = (List<Double>) state.loadObject("throughputHistory");
+		statisticsHistory = (List<Map<String, ComponentStatistics>>)
+			state.loadObject("statisticsHistory");
 	}
 
 	public void save() {
 		state.saveObject("parallelismHistory", parallelismHistory);
 		state.saveObject("throughputHistory", throughputHistory);
+		state.saveObject("statisticsHistory", statisticsHistory);
 	}
 
 	public void run(Map<String, ComponentStatistics> statistics) {
@@ -67,17 +73,21 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 		if (parallelismHistory == null) {
 			parallelismHistory = new ArrayList<Map<String, Integer>>();
 			throughputHistory = new ArrayList<Double>();
+			statisticsHistory = new ArrayList<Map<String, ComponentStatistics>>();
 		}
 
 		// Add the latest statistics
 		parallelismHistory.add(state.parallelism);
 		throughputHistory.add(state.newThroughput);
+		statisticsHistory.add(statistics);
 
 		int n = parallelismHistory.size();
 		if (state.iteration < iterations) {
 			// Take our best configuration
-			Map<String, Integer> newParallelism = getConfigurationWithRank(
-				sampleRanking(n, 0.5));
+			int rank = sampleRanking(n, alpha);
+			int best = getIterationWithRank(rank);
+			Map<String, Integer> newParallelism =
+				new HashMap<String, Integer>(parallelismHistory.get(best));
 
 			// Choose how many components to increase
 			int numComponents=1;
@@ -90,8 +100,8 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 			// Choose which components to increase
 			List<String> ranking = ranker.rankComponents(
 				state.topologyContext,
-				statistics,
-				state.parallelism);
+				statisticsHistory.get(best),
+				newParallelism);
 			for (int i=0; i<numComponents; i++) {
 				String component = ranking.get(
 					sampleRanking(ranking.size(), 0.5));
@@ -123,7 +133,7 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 		}
 	}
 
-	private Map<String, Integer> getConfigurationWithRank(int k) {
+	private int getIterationWithRank(int k) {
 		List<Double> throughputs = new ArrayList<Double>(throughputHistory);
 		int best = 0;
 		while (k >= 0) {
@@ -138,7 +148,7 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 			throughputs.set(best, null);
 			k--;
 		}
-		return new HashMap<String, Integer>(parallelismHistory.get(best));
+		return best;
 	}
 
 	// Sample from a truncated geometric distribution

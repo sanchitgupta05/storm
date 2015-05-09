@@ -1,5 +1,5 @@
 function run_topology() {
-	iterations=10
+	iterations=1
 	topology="$1"
 	algorithm="$2"
 	name=$(echo "local_$topology_$algorithm")
@@ -12,4 +12,6 @@ function run_topology() {
 # run_topology "custom0" "iterative"
 
 # run_topology "custom0" "trained"
-run_topology "custom0" "random"
+run_topology "custom0" "walk0"
+
+# run_topology "wordcount" "random"

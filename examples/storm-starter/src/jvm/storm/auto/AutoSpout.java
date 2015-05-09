@@ -60,6 +60,7 @@ public class AutoSpout extends BaseRichSpout {
 
 	@Override
 	public void fail(Object id) {
+		collector.emit(new Values("fin"), id);
 	}
 
 	@Override

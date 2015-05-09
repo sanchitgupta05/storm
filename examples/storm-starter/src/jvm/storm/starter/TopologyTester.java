@@ -122,43 +122,15 @@ public class TopologyTester {
 	return builder.createTopology();
   }
 
-  private static StormTopology createStar() {
-	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
-
-	builder.addSpout(AutoSpout.create("pre-spout"));
-
-	/*Star Topology construction*/
-	List<String> spouts = new ArrayList<String>();
-	for(int i = 0; i < 3; i++) {
-		String spoutName = "spout_"+String.valueOf(i);
-		builder.addBolt(AutoBolt.create(spoutName, 0, 1));
-		spouts.add(spoutName);
-	}
-
-	String midBoltName = "mid-bolt";
-	AutoBolt midBolt = AutoBolt.create(midBoltName, 1, 10);
-	for(String spout : spouts) {
-		midBolt.addParent(spout);
-	}
-	builder.addBolt(midBolt, 1);
-
-	for(int i = 0; i < 3; i++) {
-		String boltName = "out_"+String.valueOf(i);
-		builder.addBolt(AutoBolt.create(boltName, 2, 100)
-						.addParent(midBoltName), 1);
-	}
-	return builder.createTopology();
-  }
-
   private static StormTopology createDiamond() {
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
 
 	/* Diamond Topology construction*/
 	builder.addSpout(AutoSpout.create("a"));
-	AutoBolt output = AutoBolt.create("output", 1, 100);
+	AutoBolt output = AutoBolt.create("output", 1, 10);
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
-		builder.addBolt(AutoBolt.create(boltName, 2, 100)
+		builder.addBolt(AutoBolt.create(boltName, 2, 10)
 						.addParent("a"), 1);
 		output.addParent(boltName);
 	}
@@ -174,46 +146,39 @@ public class TopologyTester {
 	String prevBoltName = "a";
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
-		builder.addBolt(AutoBolt.create(boltName, 2, 100)
+		builder.addBolt(AutoBolt.create(boltName, 5, 1)
 						.addParent(prevBoltName), 1);
 		prevBoltName = boltName;
 	}
 	return builder.createTopology();
   }
 
-  private static StormTopology createReach() {
-	int numTasks = 10;
-    LinearDRPCTopologyBuilder builder = new LinearDRPCTopologyBuilder("reach");
-    builder.addBolt(new ReachTopology.GetTweeters(), 4).setNumTasks(numTasks);
-    builder.addBolt(new ReachTopology.GetFollowers(), 1).shuffleGrouping().setNumTasks(numTasks);
-    builder.addBolt(new ReachTopology.PartialUniquer(), 1).fieldsGrouping(
-	  new Fields("id", "follower")).setNumTasks(numTasks);
-    builder.addBolt(new ReachTopology.CountAggregator(), 1).fieldsGrouping(
-	  new Fields("id")).setNumTasks(numTasks);
-	return builder.createRemoteTopology();
+  private static StormTopology createTree() {
+	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	builder.addSpout(AutoSpout.create("spout"));
+	builder.addBolt(AutoBolt.create("left", 1, 10)
+					.addParent("spout"));
+	builder.addBolt(AutoBolt.create("right", 1, 10)
+					.addParent("spout"));
+	builder.addBolt(AutoBolt.create("leftleft", 1, 1)
+					.addParent("left"));
+	builder.addBolt(AutoBolt.create("leftright", 1, 1)
+					.addParent("left"));
+	builder.addBolt(AutoBolt.create("rightleft", 1, 1)
+					.addParent("right"));
+	builder.addBolt(AutoBolt.create("rightright", 1, 1)
+					.addParent("right"));
+	return builder.createTopology();
   }
 
-  // private static StormTopology createRolling() {
-  //   TopologyBuilder builder = new TopologyBuilder();
-  //   String spoutId = "wordGenerator";
-  //   String counterId = "counter";
-  //   String intermediateRankerId = "intermediateRanker";
-  //   String totalRankerId = "finalRanker";
-  //   builder.setSpout(spoutId, new TestWordSpout(), 5);
-  //   builder.setBolt(counterId, new RollingCountBolt(9, 3), 4).fieldsGrouping(spoutId, new Fields("word"));
-  //   builder.setBolt(intermediateRankerId, new IntermediateRankingsBolt(TOP_N), 4).fieldsGrouping(counterId, new Fields(
-  //       "obj"));
-  //   builder.setBolt(totalRankerId, new TotalRankingsBolt(TOP_N)).globalGrouping(intermediateRankerId);
-  // }
 
   private static Map<String, StormTopology> getTopologies() {
 	Map<String, StormTopology> tops = new HashMap<String, StormTopology>();
 	tops.put("wordcount", createWordCount());
 	tops.put("custom0", createCustom0());
-	tops.put("star", createStar());
 	tops.put("diamond", createDiamond());
+	tops.put("tree", createTree());
 	tops.put("linear", createLinear());
-	tops.put("reach", createReach());
 	return tops;
   }
 

@@ -33,12 +33,22 @@ function run_topology() {
 
 mvn clean compile assembly:single || exit
 
-local=1
-
 # run_topology "wordcount" "iterative"
 # run_topology "wordcount" "roundrobin"
 
 # run_topology "custom0" "random"
-# run_topology "custom0" "iterative"
 # run_topology "custom0" "roundrobin"
-run_topology "custom0" "trained"
+# run_topology "wordcount" "trained"
+# run_topology "wordcount" "walk"
+
+# run_topology "wordcount" "iterative"
+# run_topology "wordcount" "random"
+# run_topology "wordcount" "walk"
+# run_topology "wordcount" "trained"
+
+# run_topology "linear" "walk"
+run_topology "tree" "walk"
+
+# run_topology "diamond" "walk"
+# run_topology "diamond" "random"
+# run_topology "diamond" "iterative"

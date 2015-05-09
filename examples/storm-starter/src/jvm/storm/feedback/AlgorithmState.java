@@ -174,6 +174,12 @@ public class AlgorithmState {
 		parallelism = (Map<String, Integer>)loadObject("parallelism");
 		iteration = (Integer)loadObject("iteration");
 		algorithm.load();
+
+		// If inactive after rebalance, reactivate
+		String status = topologyStatus();
+		if (status != null && status.equals("INACTIVE")) {
+			activate();
+		}
 	}
 
 	// Save algorithm state to zookeeper
@@ -220,10 +226,6 @@ public class AlgorithmState {
 		LOG.info("Topology Status: " + status);
 
 		// wait sufficiently after rebalancing to run the algorithm again
-		if (status != null && status.equals("REBALANCING")) {
-			updateCounter = -5;
-		}
-
 		if (status != null) {
 			if (status.equals("REBALANCING")) {
 				updateCounter = -5;
@@ -256,14 +258,7 @@ public class AlgorithmState {
 				newThroughput = mean(newThroughputs);
 				LOG.info("Final Throughput: " + newThroughput);
 				printStatistics(statistics);
-
-				// was this iteration a fluke?
-				if (newThroughput < 5) {
-					// Try again
-					rebalance();
-					return;
-				}
-
+				//
 				iteration++;
 				algorithm.run(statistics);
 
@@ -374,11 +369,14 @@ public class AlgorithmState {
 
 		save();
 
-		// prevent nimbus from getting confused
-		if (localCluster != null) {
-			deactivate();
-			timer.schedule(new ActivateTask(this), (rebalanceDelay + activateDelay) * 1000);
-		}
+		// deactivate();
+		// timer.schedule(new ActivateTask(this), (rebalanceDelay + activateDelay) * 1000);
+
+        // prevent nimbus from getting confused
+		// if (localCluster != null) {
+		// 	deactivate();
+		// 	timer.schedule(new ActivateTask(this), (rebalanceDelay + activateDelay) * 1000);
+		// }
 
 		LOG.info("parallelism rebalance " + System.currentTimeMillis());
 		for (String component : parallelism.keySet()) {

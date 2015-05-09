@@ -46,7 +46,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 
 	private Timer timer;
 	private Long emailStartTime;
-	private List<Map<String, String>> emailLog;
+	private List<Map<String, Object>> emailLog;
 	private List<String> sentEmails;
 
 	public EmailWrapper(int k, IFeedbackAlgorithm algorithm) {
@@ -61,13 +61,13 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 	}
 
 	public void load() {
-		emailLog = (List<Map<String, String>>) state.loadObject("emailLog");
+		emailLog = (List<Map<String, Object>>) state.loadObject("emailLog");
 		emailStartTime = (Long) state.loadObject("emailStartTime");
 		sentEmails = (List<String>) state.loadObject("sentEmails");
 		algorithm.load();
 
 		if (emailLog == null) {
-			emailLog = new ArrayList<Map<String, String>>();
+			emailLog = new ArrayList<Map<String, Object>>();
 		}
 
 		if (emailStartTime == null) {
@@ -80,7 +80,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 
 		if (timer == null) {
 			timer = new Timer();
-			scheduleEmail("Progress (15 minutes)", 15 * 60 * 1000);
+			// scheduleEmail("Progress (15 minutes)", 15 * 60 * 1000);
 			scheduleEmail("Progress (30 minutes)", 30 * 60 * 1000);
 			scheduleEmail("Progress (45 minutes)", 45 * 60 * 1000);
 		}
@@ -101,9 +101,9 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 			EmailTask task = new EmailTask(this, header);
 			timer.schedule(task, deltaTime);
 		} else {
-			if (!sentEmails.contains(header)) {
-				sendEmail(header);
-			}
+			// if (!sentEmails.contains(header)) {
+			// 	sendEmail(header);
+			// }
 		}
 	}
 
@@ -116,13 +116,12 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 	public void addToLog(String key, Object value) {
 		int n = emailLog.size();
 		if (n > 0) {
-			String s = (value == null) ? "null" : value.toString();
-			emailLog.get(n - 1).put(key, s);
+			emailLog.get(n - 1).put(key, value);
 		}
 	}
 
 	public void run(Map<String, ComponentStatistics> statistics) {
-		emailLog.add(new HashMap<String, String>());
+		emailLog.add(new HashMap<String, Object>());
 
 		// we want to make it independent of the number of hosts?
 		// to be able to guess the tolerance without knowing that information?
@@ -135,6 +134,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		log("parallelism", state.parallelism);
 		log("throughput", state.newThroughput);
 		log("throughputs", state.newThroughputs);
+		log("statistics", statistics);
 
 		if (emailLog.size() <= k) {
 			algorithm.run(statistics);
@@ -142,7 +142,14 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 
 		if (emailLog.size() == k+1) {
 			long elapsed = System.currentTimeMillis() - emailStartTime;
-			sendEmail(String.format("Finished (%d minutes)", elapsed / (1000 * 60)));
+
+			// Send finished email
+			String finishedHeader = String.format("Finished (%d minutes)", elapsed / (1000 * 60));
+			sendEmail(finishedHeader, getContent());
+
+			// Send extra
+			// sendEmail("Extra Information", getExtraContent());
+
 			state.deactivate();
 		}
 	}
@@ -159,25 +166,17 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		columns.add("penalty");
 		columns.add("throughputs");
 
-		// Set<String> fields = new HashSet<String>();
-		// for (Map<String, String> entry : emailLog) {
-		// 	for (String key : entry.keySet()) {
-		// 		fields.add(key);
-		// 	}
-		// }
-		// List<String> columns = new ArrayList<String>(fields);
-
 		return getContent(columns);
 	}
 
-	private String getContent(List<String> columns) {
+	public String getContent(List<String> columns) {
 		List<String> lines = new ArrayList<String>();
 		List<String> header = new ArrayList<String>();
 		for (String column : columns) {
 		 	header.add(column);
 		}
 		lines.add(StringUtils.join(header, "; "));
-		for (Map<String, String> entry : emailLog) {
+		for (Map<String, Object> entry : emailLog) {
 			List<String> line = new ArrayList<String>();
 			for (String column : columns) {
 				line.add(String.format("%s", entry.get(column)));
@@ -187,10 +186,46 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		return StringUtils.join(lines, "\n");
 	}
 
-	private void sendEmail(String header) {
-		try {
-			String content = getContent();
+	private String getExtraContent() {
+		StringBuilder builder = new StringBuilder();
 
+		int n = emailLog.size();
+		for (int i=0; i<n; i++) {
+			Map<String, Object> data = emailLog.get(i);
+			Map<String, Integer> parallelism =
+				(Map<String, Integer>)data.get("parallelism");
+			Map<String, ComponentStatistics> statistics =
+				(Map<String, ComponentStatistics>)data.get("statistics");
+			if (parallelism == null || statistics == null) {
+				continue;
+			}
+
+			builder.append(String.format("Statistics for iteration %d:\n", i));
+			for (String component : statistics.keySet()) {
+				ComponentStatistics stats = statistics.get(component);
+				if (!parallelism.containsKey(component))
+					continue;
+
+				builder.append(String.format("%s.receiveLatency=%s\n", component, stats.receiveLatency));
+				builder.append(String.format("%s.sendLatency=%s\n", component, stats.sendLatency));
+
+				if (!stats.isSpout) {
+					// potential throughput
+					double potential = 1000.0 / stats.executeLatency * parallelism.get(component);
+					builder.append(String.format("%s.potential=%s\n", component, potential));
+
+					// actual throughput
+					builder.append(String.format("%s.actual=%s\n", component, stats.executeCount));
+				}
+			}
+			builder.append("\n");
+		}
+
+		return builder.toString();
+	}
+
+	private void sendEmail(String header, String content) {
+		try {
 			String url = "https://api.mailgun.net/v3/sandbox9a097dfb563f4cbe8ffa1fa931fa76ea.mailgun.org/messages";
 			String data = "";
 			data += String.format("from=%s", "bot@525project.io");
@@ -253,7 +288,7 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		}
 
 		public void run() {
-			wrapper.sendEmail(header);
+			wrapper.sendEmail(header, wrapper.getContent());
 		}
 	}
 }
