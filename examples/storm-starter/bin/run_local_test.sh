@@ -1,5 +1,5 @@
 function run_topology() {
-	iterations=1
+	iterations=10
 	topology="$1"
 	algorithm="$2"
 	name=$(echo "local_$topology_$algorithm")
