@@ -1,0 +1,17 @@
+seconds; parallelism; throughput; correlation; cpuBound; cores; penalty; throughputs; man; woman
+61; {rightright=1, leftleft=1, leftright=1, spout=1, left=1, rightleft=1, right=1}; 989.54; null; null; null; null; [976.2, 1003.4, 1001.2, 998.0, 992.6, 1009.6, 996.2, 1011.2, 1017.2, 889.8]; null; null
+154; {rightright=6, leftleft=8, leftright=1, spout=1, left=4, rightleft=2, right=1}; 970.9; null; null; null; null; [986.2, 938.6, 973.4, 1002.2, 970.0, 938.0, 995.8, 973.0, 954.0, 977.8]; null; null
+244; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2161.0600000000004; null; null; null; null; [2124.2, 2093.4, 2204.0, 2217.6, 2171.6, 2169.4, 2174.6, 2150.8, 2122.4, 2182.6]; null; null
+338; {rightright=1, leftleft=5, leftright=6, spout=1, left=8, rightleft=1, right=2}; 905.1; null; null; null; null; [892.0, 854.2, 939.6, 942.6, 913.8, 921.2, 952.0, 930.2, 929.8, 775.6]; null; null
+427; {rightright=2, leftleft=2, leftright=9, spout=1, left=8, rightleft=1, right=7}; 934.9200000000001; null; null; null; null; [993.8, 985.8, 989.2, 972.8, 949.6, 894.2, 907.4, 880.0, 851.4, 925.0]; null; null
+518; {rightright=4, leftleft=8, leftright=9, spout=1, left=9, rightleft=7, right=4}; 1985.98; null; null; null; null; [1986.4, 1994.4, 2012.0, 2011.2, 2021.6, 2031.4, 2016.4, 2002.0, 1957.8, 1826.6]; null; null
+614; {rightright=3, leftleft=7, leftright=7, spout=1, left=9, rightleft=7, right=5}; 1968.4; null; null; null; null; [1970.0, 1992.4, 1971.4, 1989.6, 2005.2, 1999.8, 1975.0, 1981.6, 1951.4, 1847.6]; null; null
+709; {rightright=8, leftleft=3, leftright=1, spout=1, left=2, rightleft=3, right=6}; 964.0600000000001; null; null; null; null; [1028.8, 985.6, 1017.2, 1003.8, 1026.2, 987.0, 1039.2, 963.2, 780.6, 809.0]; null; null
+805; {rightright=4, leftleft=6, leftright=4, spout=1, left=5, rightleft=2, right=7}; 1776.64; null; null; null; null; [1790.6, 1753.0, 1697.0, 1818.2, 1814.8, 1787.2, 1826.6, 1898.2, 1805.6, 1575.2]; null; null
+903; {rightright=9, leftleft=3, leftright=5, spout=1, left=5, rightleft=9, right=7}; 1966.5399999999997; null; null; null; null; [1925.4, 1963.8, 1982.6, 1967.8, 1979.8, 1941.4, 1971.0, 1960.4, 1988.4, 1984.8]; null; null
+995; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2154.2799999999997; null; null; null; null; [2120.2, 2133.2, 2154.2, 2183.2, 2181.8, 2172.6, 2185.6, 2194.0, 2183.4, 2034.6]; null; null
+1022; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2188.94; null; null; null; null; [2216.6, 2210.0, 2211.0, 2192.8, 2181.6, 2173.4, 2171.6, 2169.4, 2167.2, 2195.8]; null; null
+1051; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2193.2799999999997; null; null; null; null; [2178.8, 2174.8, 2196.8, 2206.2, 2203.4, 2211.0, 2186.6, 2179.8, 2192.8, 2202.6]; null; null
+1078; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2208.6; null; null; null; null; [2205.4, 2205.8, 2209.4, 2207.4, 2217.2, 2211.8, 2198.0, 2212.8, 2223.2, 2195.0]; null; null
+1105; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2183.4199999999996; null; null; null; null; [2181.2, 2193.0, 2190.2, 2167.4, 2196.4, 2150.4, 2171.8, 2183.8, 2227.4, 2172.6]; null; null
+1132; {rightright=5, leftleft=5, leftright=9, spout=1, left=7, rightleft=6, right=2}; 2193.8599999999997; null; null; null; null; [2198.2, 2178.6, 2206.4, 2198.0, 2186.6, 2227.8, 2207.2, 2181.6, 2166.4, 2187.8]; null; null

@@ -39,7 +39,6 @@ import org.apache.commons.lang.StringUtils;
 
 public class EmailWrapper implements IFeedbackAlgorithm {
 	private static EmailWrapper _instance;
-
 	private AlgorithmState state;
 	private IFeedbackAlgorithm algorithm;
 	private int k;

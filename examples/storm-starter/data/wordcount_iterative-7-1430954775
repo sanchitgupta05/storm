@@ -1,0 +1,12 @@
+parallelism; throughput; correlation; cpuBound; cores; penalty
+{count=1, spout=1, split=1}; 2.4; null; null; null; null
+{count=1, spout=1, split=2}; 5.26; null; null; null; null
+{count=1, spout=1, split=3}; 8.040000000000001; null; null; null; null
+{count=1, split=4, spout=1}; 7.9799999999999995; null; null; null; null
+{count=1, split=3, spout=1}; 6.459999999999999; null; null; null; null
+{count=2, split=3, spout=1}; 2.44; null; null; null; null
+{count=1, split=3, spout=1}; 9.82; null; null; null; null
+{count=2, split=4, spout=1}; 2.6; null; null; null; null
+{count=1, split=3, spout=1}; 7.76; null; null; null; null
+{count=1, split=3, spout=1}; 9.440000000000001; null; null; null; null
+{count=1, split=3, spout=1}; 12.819999999999999; null; null; null; null

@@ -139,6 +139,25 @@ public class TopologyTester {
 	return builder.createTopology();
   }
 
+  private static StormTopology createDiamond2() {
+	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	int start = 1;
+
+	int work[] = new int[]{1, 30, 6, 15, 1, 6};
+
+	/* Diamond Topology construction*/
+	builder.addSpout(AutoSpout.create("a"));
+	AutoBolt output = AutoBolt.create("output", 1, 10);
+	for(int i = 0; i <= 5; i++) {
+		String boltName = "bolt_"+String.valueOf(i);
+		builder.addBolt(AutoBolt.create(boltName, work[i], 10)
+						.addParent("a"), start);
+		output.addParent(boltName);
+	}
+	builder.addBolt(output, start);
+	return builder.createTopology();
+  }
+
   private static StormTopology createLinear() {
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
 	int start = 1;
@@ -149,6 +168,23 @@ public class TopologyTester {
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
 		builder.addBolt(AutoBolt.create(boltName, 5, 1)
+						.addParent(prevBoltName), start);
+		prevBoltName = boltName;
+	}
+	return builder.createTopology();
+  }
+
+  private static StormTopology createLinear2() {
+	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	int start = 1;
+	int work[] = new int[] {1, 20, 35, 5, 10, 7};
+
+	/* Linear Topology construction*/
+	builder.addSpout(AutoSpout.create("a"));
+	String prevBoltName = "a";
+	for(int i = 0; i <= 5; i++) {
+		String boltName = "bolt_"+String.valueOf(i);
+		builder.addBolt(AutoBolt.create(boltName, work[i], 1)
 						.addParent(prevBoltName), start);
 		prevBoltName = boltName;
 	}
@@ -175,6 +211,25 @@ public class TopologyTester {
 	return builder.createTopology();
   }
 
+  private static StormTopology createTree2() {
+	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	int start = 1;
+
+	builder.addSpout(AutoSpout.create("spout"));
+	builder.addBolt(AutoBolt.create("left", 10, 10)
+					.addParent("spout"), start);
+	builder.addBolt(AutoBolt.create("right", 1, 10)
+					.addParent("spout"), start);
+	builder.addBolt(AutoBolt.create("leftleft", 20, 1)
+					.addParent("left"), start);
+	builder.addBolt(AutoBolt.create("leftright", 15, 1)
+					.addParent("left"), start);
+	builder.addBolt(AutoBolt.create("rightleft", 1, 1)
+					.addParent("right"), start);
+	builder.addBolt(AutoBolt.create("rightright", 1, 1)
+					.addParent("right"), start);
+	return builder.createTopology();
+  }
 
   private static Map<String, StormTopology> getTopologies() {
 	Map<String, StormTopology> tops = new HashMap<String, StormTopology>();
@@ -183,6 +238,9 @@ public class TopologyTester {
 	tops.put("diamond", createDiamond());
 	tops.put("tree", createTree());
 	tops.put("linear", createLinear());
+	tops.put("diamond2", createDiamond2());
+	tops.put("tree2", createTree2());
+	tops.put("linear2", createLinear2());
 	return tops;
   }
 

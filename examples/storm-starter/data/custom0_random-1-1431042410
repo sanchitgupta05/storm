@@ -1,0 +1,17 @@
+seconds; parallelism; throughput; correlation; cpuBound; cores; penalty
+63; {d=1, b=1, c=1, a=1}; 5176.64; null; null; null; null
+158; {d=5, b=4, c=9, a=1}; 7141.5; null; null; null; null
+251; {d=9, b=5, c=5, a=1}; 7122.44; null; null; null; null
+355; {d=9, b=3, c=8, a=1}; 0.2; null; null; null; null
+451; {d=2, b=9, c=7, a=1}; 7748.960000000001; null; null; null; null
+584; {d=9, b=6, c=5, a=1}; 0.3; null; null; null; null
+680; {d=6, b=3, c=8, a=1}; 7191.139999999999; null; null; null; null
+785; {d=5, b=2, c=4, a=1}; 0.2; null; null; null; null
+892; {d=5, b=7, c=8, a=1}; 7271.420000000001; null; null; null; null
+994; {d=6, b=5, c=2, a=1}; 0.7; null; null; null; null
+1091; {d=2, b=9, c=7, a=1}; 7861.300000000001; null; null; null; null
+1122; {d=2, b=9, c=7, a=1}; 7976.219999999999; null; null; null; null
+1151; {d=2, b=9, c=7, a=1}; 7972.9800000000005; null; null; null; null
+1178; {d=2, b=9, c=7, a=1}; 7966.339999999999; null; null; null; null
+1205; {d=2, b=9, c=7, a=1}; 7914.38; null; null; null; null
+1232; {d=2, b=9, c=7, a=1}; 7939.44; null; null; null; null

@@ -1,0 +1,12 @@
+parallelism; throughput; correlation; cpuBound; cores; penalty
+{d=1, b=1, c=1, a=1}; 4.020000000000001; null; null; null; null
+{d=1, b=1, c=2, a=1}; 15.36; null; null; null; null
+{d=1, b=2, c=2, a=1}; 12.24; null; null; null; null
+{d=1, b=1, c=2, a=1}; 7.6; null; null; null; null
+{d=1, b=1, c=3, a=1}; 12.240000000000002; null; null; null; null
+{d=1, b=2, c=3, a=1}; 10.379999999999999; null; null; null; null
+{d=1, b=1, c=3, a=1}; 6.119999999999999; null; null; null; null
+{d=1, b=1, c=4, a=1}; 12.3; null; null; null; null
+{d=2, b=1, c=4, a=1}; 8.360000000000001; null; null; null; null
+{d=1, b=1, c=4, a=1}; 21.860000000000003; null; null; null; null
+{d=1, b=2, c=4, a=1}; 6.920000000000002; null; null; null; null

@@ -272,6 +272,9 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 			if (type.equals("genetic")) {
 				algorithm = new IntercourseAlgorithm(iterations);
 			}
+			if (type.equals("full")) {
+				algorithm = new FullAlgorithm();
+			}
 		}
 
 		if (algorithm == null) {

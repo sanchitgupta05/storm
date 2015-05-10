@@ -1,0 +1,17 @@
+seconds; parallelism; throughput; correlation; cpuBound; cores; penalty; throughputs; man; woman
+61; {bolt_3=1, bolt_2=1, bolt_5=1, bolt_4=1, a=1, bolt_1=1, bolt_0=1, output=1}; 153.82000000000002; null; null; null; null; [160.0, 152.6, 149.8, 149.8, 161.2, 158.2, 160.2, 160.2, 159.2, 127.0]; null; null
+156; {bolt_3=8, bolt_2=6, bolt_5=9, bolt_4=8, a=1, bolt_1=6, bolt_0=3, output=4}; 485.17999999999995; null; null; null; null; [521.4, 522.8, 520.2, 512.4, 499.2, 506.8, 477.2, 499.6, 402.4, 389.8]; null; null
+255; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 685.86; null; null; null; null; [707.4, 705.8, 684.4, 684.4, 718.4, 697.8, 667.0, 677.6, 707.0, 608.8]; null; null
+345; {bolt_3=4, bolt_2=3, bolt_5=8, bolt_4=9, a=1, bolt_1=5, bolt_0=8, output=9}; 634.0400000000001; null; null; null; null; [648.2, 667.4, 637.4, 673.4, 647.0, 661.6, 671.0, 633.0, 606.6, 494.8]; null; null
+434; {bolt_3=2, bolt_2=2, bolt_5=6, a=1, bolt_4=1, bolt_1=7, bolt_0=1, output=8}; 623.1800000000001; null; null; null; null; [630.6, 626.2, 619.2, 628.4, 635.6, 608.4, 625.4, 623.2, 637.8, 597.0]; null; null
+524; {bolt_3=4, bolt_2=8, bolt_5=6, bolt_4=4, a=1, bolt_1=3, bolt_0=9, output=4}; 467.5799999999999; null; null; null; null; [516.6, 485.4, 542.6, 492.8, 465.4, 452.2, 449.6, 435.8, 444.0, 391.4]; null; null
+614; {bolt_3=4, bolt_2=4, bolt_5=5, a=1, bolt_4=2, bolt_1=3, bolt_0=8, output=4}; 413.08000000000004; null; null; null; null; [422.2, 398.2, 431.0, 448.0, 421.6, 407.0, 429.8, 387.4, 380.8, 404.8]; 6; 1
+705; {bolt_3=6, bolt_2=5, bolt_5=7, bolt_4=5, a=1, bolt_1=5, bolt_0=6, output=4}; 479.05999999999995; null; null; null; null; [543.8, 536.2, 538.2, 500.6, 523.2, 477.2, 456.6, 466.2, 401.6, 347.0]; 2; 6
+804; {bolt_3=5, bolt_2=6, bolt_5=7, a=1, bolt_4=5, bolt_1=5, bolt_0=8, output=6}; 535.5000000000001; null; null; null; null; [617.8, 645.6, 688.2, 644.8, 640.0, 547.2, 479.0, 422.6, 369.6, 300.2]; 2; 7
+896; {bolt_3=6, bolt_2=6, bolt_5=8, bolt_4=7, a=1, bolt_1=6, bolt_0=7, output=6}; 444.53999999999996; null; null; null; null; [491.0, 504.0, 439.6, 419.6, 402.8, 421.4, 408.4, 448.2, 461.2, 449.2]; 2; 7
+952; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 666.9400000000002; null; null; null; null; [615.4, 656.0, 686.2, 700.0, 693.2, 726.4, 700.2, 657.6, 626.8, 607.6]; null; null
+982; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 636.64; null; null; null; null; [636.0, 604.8, 627.0, 653.0, 672.0, 666.0, 662.4, 657.4, 584.2, 603.6]; null; null
+1009; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 578.4399999999999; null; null; null; null; [615.6, 612.0, 653.4, 605.6, 578.6, 560.0, 555.2, 526.6, 534.2, 543.2]; null; null
+1047; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 671.8599999999999; null; null; null; null; [679.2, 647.6, 647.0, 691.2, 683.6, 676.6, 693.6, 699.0, 660.4, 640.4]; null; null
+1074; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 646.8399999999999; null; null; null; null; [590.2, 625.8, 657.6, 712.0, 691.6, 681.6, 655.8, 627.4, 607.2, 619.2]; null; null
+1101; {bolt_3=6, bolt_2=7, bolt_5=9, a=1, bolt_4=8, bolt_1=7, bolt_0=8, output=7}; 595.26; null; null; null; null; [571.6, 626.2, 605.6, 614.4, 603.8, 587.8, 584.2, 576.8, 568.4, 613.8]; null; null
