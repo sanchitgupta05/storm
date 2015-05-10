@@ -42,8 +42,9 @@ public class CongestionRanker implements IRanker {
 					stats.receiveLatency +
 					stats.executeLatency +
 					stats.sendLatency;
-				if (congestion > max) {
-					max = congestion;
+				double score = congestion / (parallelism.get(component) + 1);
+				if (score > max) {
+					max = score;
 					maxComponent = component;
 				}
 			}

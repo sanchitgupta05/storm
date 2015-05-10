@@ -258,10 +258,19 @@ public class FeedbackMetricsConsumer implements IMetricsConsumer {
 				algorithm = new RandomAlgorithm(iterations);
 			}
 			if (type.equals("walk")) {
-				algorithm = new WalkAlgorithm(iterations, 0.5, new CongestionRanker());
+				algorithm = new WalkAlgorithm(iterations, 0.5, 2, new CongestionRanker());
 			}
 			if (type.equals("walk0")) {
-				algorithm = new WalkAlgorithm(iterations, 0.0, new CongestionRanker());
+				algorithm = new WalkAlgorithm(iterations, 0.0, 2, new CongestionRanker());
+			}
+			if (type.equals("walk1")) {
+				algorithm = new WalkAlgorithm(iterations, 0.25, 4, new CongestionRanker());
+			}
+			if (type.equals("walk2")) {
+				algorithm = new WalkAlgorithm(iterations, 0.25, 6, new CongestionRanker());
+			}
+			if (type.equals("genetic")) {
+				algorithm = new IntercourseAlgorithm(iterations);
 			}
 		}
 

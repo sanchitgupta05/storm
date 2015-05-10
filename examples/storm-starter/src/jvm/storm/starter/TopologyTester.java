@@ -124,6 +124,7 @@ public class TopologyTester {
 
   private static StormTopology createDiamond() {
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	int start = 1;
 
 	/* Diamond Topology construction*/
 	builder.addSpout(AutoSpout.create("a"));
@@ -131,15 +132,16 @@ public class TopologyTester {
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
 		builder.addBolt(AutoBolt.create(boltName, 2, 10)
-						.addParent("a"), 1);
+						.addParent("a"), start);
 		output.addParent(boltName);
 	}
-	builder.addBolt(output, 1);
+	builder.addBolt(output, start);
 	return builder.createTopology();
   }
 
   private static StormTopology createLinear() {
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	int start = 1;
 
 	/* Linear Topology construction*/
 	builder.addSpout(AutoSpout.create("a"));
@@ -147,7 +149,7 @@ public class TopologyTester {
 	for(int i = 0; i <= 5; i++) {
 		String boltName = "bolt_"+String.valueOf(i);
 		builder.addBolt(AutoBolt.create(boltName, 5, 1)
-						.addParent(prevBoltName), 1);
+						.addParent(prevBoltName), start);
 		prevBoltName = boltName;
 	}
 	return builder.createTopology();
@@ -155,19 +157,21 @@ public class TopologyTester {
 
   private static StormTopology createTree() {
 	AutoTopologyBuilder builder = new AutoTopologyBuilder(10);
+	int start = 1;
+
 	builder.addSpout(AutoSpout.create("spout"));
 	builder.addBolt(AutoBolt.create("left", 1, 10)
-					.addParent("spout"));
+					.addParent("spout"), start);
 	builder.addBolt(AutoBolt.create("right", 1, 10)
-					.addParent("spout"));
+					.addParent("spout"), start);
 	builder.addBolt(AutoBolt.create("leftleft", 1, 1)
-					.addParent("left"));
+					.addParent("left"), start);
 	builder.addBolt(AutoBolt.create("leftright", 1, 1)
-					.addParent("left"));
+					.addParent("left"), start);
 	builder.addBolt(AutoBolt.create("rightleft", 1, 1)
-					.addParent("right"));
+					.addParent("right"), start);
 	builder.addBolt(AutoBolt.create("rightright", 1, 1)
-					.addParent("right"));
+					.addParent("right"), start);
 	return builder.createTopology();
   }
 

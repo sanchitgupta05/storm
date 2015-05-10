@@ -47,8 +47,25 @@ mvn clean compile assembly:single || exit
 # run_topology "wordcount" "trained"
 
 # run_topology "linear" "walk"
-run_topology "tree" "walk"
 
 # run_topology "diamond" "walk"
 # run_topology "diamond" "random"
 # run_topology "diamond" "iterative"
+
+# run_topology "linear" "walk1"
+# run_topology "linear" "walk2"
+
+# run_topology "diamond" "walk1"
+# run_topology "diamond" "walk2"
+
+# run_topology "tree" "walk1"
+# run_topology "tree" "walk2"
+
+# run_topology "linear" "walk1"
+# run_topology "tree" "walk1"
+# run_topology "linear" "walk2"
+# run_topology "tree" "walk2"
+
+run_topology "tree" "genetic"
+run_topology "linear" "genetic"
+run_topology "diamond" "genetic"

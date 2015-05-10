@@ -165,6 +165,8 @@ public class EmailWrapper implements IFeedbackAlgorithm {
 		columns.add("cores");
 		columns.add("penalty");
 		columns.add("throughputs");
+		columns.add("man");
+		columns.add("woman");
 
 		return getContent(columns);
 	}

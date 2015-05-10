@@ -40,11 +40,13 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 	private List<Map<String, ComponentStatistics>> statisticsHistory;
 	private IRanker ranker;
 	private double alpha;
+	private int stepSize;
 	private int iterations;
 
-	public WalkAlgorithm(int iterations, double alpha, IRanker ranker) {
+	public WalkAlgorithm(int iterations, double alpha, int stepSize, IRanker ranker) {
 		this.iterations = iterations;
 		this.alpha = alpha;
+		this.stepSize = stepSize;
 		this.ranker = ranker;
 	}
 
@@ -91,8 +93,8 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 
 			// Choose how many components to increase
 			int numComponents=1;
-			for (int i=0; i<4; i++) {
-				if (Math.random() < 0.25) {
+			for (int i=0; i<(stepSize-1)*2; i++) {
+				if (Math.random() < 0.5) {
 					numComponents++;
 				}
 			}
@@ -104,7 +106,7 @@ public class WalkAlgorithm implements IFeedbackAlgorithm {
 				newParallelism);
 			for (int i=0; i<numComponents; i++) {
 				String component = ranking.get(
-					sampleRanking(ranking.size(), 0.5));
+					sampleRanking(ranking.size(), 0.75));
 				int numTasks = state.topologyContext.getComponentTasks(
 					component).size();
 				int p = newParallelism.get(component) + 1;
